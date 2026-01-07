@@ -24,7 +24,10 @@ set(RUNTIME_DIR ${CMAKE_SOURCE_DIR}/third_party/Lama/runtime)
 #find_package(runtime REQUIRED)
 
 include_directories(${RUNTIME_DIR})
-add_executable(lamar src/main.cpp)
+include_directories(include/)
+add_executable(lamar include/bytecode.hpp src/main.cpp
+        src/loader.cpp
+        src/bytecode.cpp)
 
 execute_process(
         COMMAND ${MAKE_EXECUTABLE} -j -C ${RUNTIME_DIR}

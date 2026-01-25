@@ -13,6 +13,7 @@ namespace lamar {
 
     class Loader {
     public:
+        explicit Loader(std::istream &inputStream);
         ByteFile read_byte_file();
     private:
 
@@ -21,7 +22,7 @@ namespace lamar {
         void read_bytes(char *buf, std::streamsize size);
         std::vector<OpCode> read_bytecode();
 
-        std::istream input_stream;
+        std::istream &input_stream_;
     };
 }
 #endif //LAMAR_LOADER_HPP

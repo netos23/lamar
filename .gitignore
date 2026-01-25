@@ -2,3 +2,9 @@ cmake-build-debug/*
 cmake-build-debug/
 .idea
 .idea/*
+
+examples/
+examples/*
+
+**/.DS_Store
+.DS_Store

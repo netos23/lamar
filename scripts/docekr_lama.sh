@@ -1,0 +1,1 @@
+docker run --mount type=bind,src=./third_party/Lama,dst=/mnt/Lama -w /mnt/Lama dlama:1.0.0  /home/user/.opam/4.14.2/bin/lamac -b ./regression/test001.lama

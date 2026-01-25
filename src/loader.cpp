@@ -15,9 +15,9 @@ int32_t lamar::Loader::read_int32_t() {
 }
 
 void lamar::Loader::read_bytes(char *buf, std::streamsize size) {
-    input_stream.read(buf, size);
+    input_stream_.read(buf, size);
 
-    if (input_stream.gcount() < size) {
+    if (input_stream_.gcount() < size) {
         throw std::range_error("Malformed bytefile");
     }
 }
@@ -54,17 +54,19 @@ lamar::ByteFile lamar::Loader::read_byte_file() {
 }
 
 std::vector<lamar::OpCode> lamar::Loader::read_bytecode() {
-    auto pos = input_stream.tellg();
-    input_stream.seekg(0, std::ios_base::end);
-    auto end = input_stream.tellg();
+    auto pos = input_stream_.tellg();
+    input_stream_.seekg(0, std::ios_base::end);
+    auto end = input_stream_.tellg();
     auto len = end - pos + 1;
-    input_stream.seekg(pos);
+    input_stream_.seekg(pos);
 
     std::vector<lamar::OpCode> res;
     res.resize(len);
 
-    input_stream.read(reinterpret_cast<char*>(res.data()), len);
+    input_stream_.read(reinterpret_cast<char*>(res.data()), len);
 
     return res;
 }
+
+lamar::Loader::Loader( std::istream &inputStream) : input_stream_(inputStream) {}
  

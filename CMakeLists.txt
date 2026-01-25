@@ -3,7 +3,6 @@ project(lamar)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_OSX_ARCHITECTURES "x86_64")
-
 set(RUNTIME_DIR ${CMAKE_SOURCE_DIR}/third_party/Lama/runtime)
 
 add_subdirectory(${RUNTIME_DIR} ${CMAKE_BINARY_DIR}/third_party/Lama/runtime)

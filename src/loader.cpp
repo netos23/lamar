@@ -46,7 +46,7 @@ lamar::ByteFile lamar::Loader::read_byte_file() {
     return {
             .string_table_size = string_table_size,
             .global_area_size = global_area_size,
-            .public_symbols_number = string_table_size,
+            .public_symbols_number = public_symbols_number,
             .string_table = std::move(string_table),
             .public_symbol_table = std::move(symbol_table),
             .program_code =  std::move(program_code),

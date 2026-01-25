@@ -75,6 +75,7 @@ namespace lamar {
             uint8_t l = static_cast<uint8_t>(opcode & 0x0F);
 
             format_addr(ip - base - 1);
+            output << std::dec;  // ensure operands default to decimal unless explicitly hex
 
             switch (h) {
                 case 0x0: { // BINOP
@@ -174,16 +175,16 @@ namespace lamar {
                                 uint8_t scope = *ip++;
                                 switch (scope) {
                                     case 0x0:
-                                        output << " G(" << std::dec << read_int32(ip, end) << ')';
+                                        output << "G(" << std::dec << read_int32(ip, end) << ')';
                                         break;
                                     case 0x1:
-                                        output << " L(" << std::dec << read_int32(ip, end) << ')';
+                                        output << "L(" << std::dec << read_int32(ip, end) << ')';
                                         break;
                                     case 0x2:
-                                        output << " A(" << std::dec << read_int32(ip, end) << ')';
+                                        output << "A(" << std::dec << read_int32(ip, end) << ')';
                                         break;
                                     case 0x3:
-                                        output << " C(" << std::dec << read_int32(ip, end) << ')';
+                                        output << "C(" << std::dec << read_int32(ip, end) << ')';
                                         break;
                                     default:
                                         throw std::runtime_error("Invalid closure captured variable type");
@@ -205,7 +206,7 @@ namespace lamar {
                             output << "ARRAY\t" << std::dec << read_int32(ip, end);
                             break;
                         case 0x9:
-                            output << "FAIL\t" << std::dec << read_int32(ip, end) << ' ' << read_int32(ip, end);
+                            output << "FAIL\t" << std::dec << read_int32(ip, end) << read_int32(ip, end);
                             break;
                         case 0xA:
                             output << "LINE\t" << std::dec << read_int32(ip, end);

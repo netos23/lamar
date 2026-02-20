@@ -37,7 +37,7 @@ namespace lamar {
 
         inline Value peek(uint32_t offset = 0);
 
-        ptrdiff_t stack_size();
+        size_t stack_size();
 
         inline uint32_t read_uint();
 
@@ -179,7 +179,6 @@ namespace lamar {
 
         inline void interpret_call_barray();
 
-        inline void interpret_eof();
 
         uint32_t ip = 0;
         std::vector<auint> stack_{};

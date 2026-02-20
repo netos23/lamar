@@ -12,8 +12,7 @@ void lamar::Interpreter::interpret() {
     init_stack();
 
     std::vector<OpCode> &code = byte_file_.program_code;
-    auto eof_marker = false;
-    while (ip < code.size() && ! eof_marker) {
+    while (ip < code.size()) {
         auto instr = code.at(ip++);
 
         switch (instr) {
@@ -198,8 +197,12 @@ void lamar::Interpreter::interpret() {
                 interpret_call_barray();
                 break;
             case EOF_:
-                eof_marker = true;
+                ip = Frame::ninit;
                 break;
+        }
+
+        if (ip == Frame::ninit) {
+            break;
         }
     }
 
@@ -214,15 +217,15 @@ void lamar::Interpreter::push_error_diagnostic(std::string_view message) {
     failure(formated_message_data, ip);
 }
 
-ptrdiff_t lamar::Interpreter::stack_size() {
-    return __gc_stack_bottom - __gc_stack_top;
+size_t lamar::Interpreter::stack_size() {
+    return stack_.size();
 }
 
 void lamar::Interpreter::init_stack() {
     size_t stack_size = byte_file_.global_area_size + 2;
     stack_.resize(stack_size, ZERO);
     __gc_stack_top = stack_.data();
-    __gc_stack_bottom = stack_.data() + stack_size;
+    __gc_stack_bottom = stack_.data() + stack_.size();
 
     // todo extract const
     call_stack_.reserve(100);
@@ -238,11 +241,13 @@ void lamar::Interpreter::init_stack() {
 }
 
 void lamar::Interpreter::push(lamar::Value v) {
-    if (stack_size() + 1 >= stack_.size()) {
-        stack_.resize(stack_.size() * 2, ZERO);
+    // todo extract const
+    if (stack_.capacity() + 100 >= stack_.size()) {
+        stack_.reserve(stack_.size() * 2);
     }
     //                    push_error_diagnostic()
-    *(__gc_stack_bottom++) = v.as_repr();
+    stack_.push_back(v.as_repr());
+    __gc_stack_bottom = stack_.data() + stack_.size();
 }
 
 lamar::Value lamar::Interpreter::pop() {
@@ -251,8 +256,10 @@ lamar::Value lamar::Interpreter::pop() {
         push_error_diagnostic("No such element on stack to pop");
     }
 #endif
-
-    return lamar::Value(*(--__gc_stack_bottom));
+    auto val = stack_.back();
+    stack_.pop_back();
+    __gc_stack_bottom = stack_.data() + stack_.size();
+    return lamar::Value(val);
 }
 
 lamar::Value lamar::Interpreter::peek(uint32_t offset) {
@@ -262,7 +269,7 @@ lamar::Value lamar::Interpreter::peek(uint32_t offset) {
     }
 #endif
 
-    return lamar::Value(*(__gc_stack_bottom - 1 - offset));
+    return lamar::Value(stack_.back());
 }
 
 uint32_t lamar::Interpreter::read_uint() {
@@ -601,12 +608,12 @@ inline void lamar::Interpreter::interpret_end() {
                    : frame.get_sp() - frame.get_args_count();
 
 
-    __gc_stack_bottom = static_cast<auint *>(__gc_stack_top + next_sp);
+    stack_.resize(next_sp);
+    __gc_stack_bottom = stack_.data() + stack_.size();
 
     auto prev_ip = frame.get_return_address();
-    if(prev_ip != Frame::ninit){
-        ip = prev_ip;
-    }
+    ip = prev_ip;
+
     call_stack_.pop_back();
 
     push(value);
@@ -1141,10 +1148,6 @@ inline void lamar::Interpreter::interpret_call_barray() {
 
     void *v = Barray(args.data(), BOX(len));
     push(Value(v));
-}
-
-inline void lamar::Interpreter::interpret_eof() {
-    // do nothing
 }
 
 lamar::Value lamar::Interpreter::get_local(int32_t address) {

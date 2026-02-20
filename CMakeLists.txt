@@ -6,6 +6,7 @@ set(CMAKE_OSX_ARCHITECTURES "x86_64")
 set(RUNTIME_DIR ${CMAKE_SOURCE_DIR}/third_party/Lama/runtime)
 
 add_subdirectory(${RUNTIME_DIR} ${CMAKE_BINARY_DIR}/third_party/Lama/runtime)
+
 add_subdirectory(${CMAKE_SOURCE_DIR}/third_party/Lama/byterun ${CMAKE_BINARY_DIR}/third_party/Lama/byterun)
 
 add_executable(lamar
@@ -13,12 +14,30 @@ add_executable(lamar
         include/bytecode.hpp
         include/disassembler.hpp
         include/loader.hpp
+        include/interpreter.hpp
+        include/runtime.hpp
+        include/value.hpp
+
+        src/common/bytecode.cpp
+        src/disassembler/disassembler.cpp
+        src/interpreter/interpreter.cpp
+        src/interpreter/value.cpp
+        src/loader/loader.cpp
 
         src/main.cpp
-        src/loader.cpp
-        src/bytecode.cpp
-        src/disassembler.cpp
+        include/frame.hpp
+        src/interpreter/frame.cpp
 )
 
 target_include_directories(lamar PRIVATE include/ ${RUNTIME_DIR})
 target_link_libraries(lamar PRIVATE runtime)
+
+if(CMAKE_BUILD_TYPE MATCHES "Debug")
+    set(
+            CMAKE_C_FLAGS
+            "${CMAKE_C_FLAGS} -Werror -fsanitize=undefined -fsanitize=address"
+    )
+    target_link_options(lamar
+            BEFORE PUBLIC -fsanitize=undefined PUBLIC -fsanitize=address
+    )
+endif()

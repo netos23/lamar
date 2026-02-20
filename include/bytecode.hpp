@@ -142,6 +142,14 @@ namespace lamar {
         EOF_ = 0XFF,
     };
 
+
+    enum ClosureArgType : uint8_t {
+        Global = 0,
+        Local = 1,
+        Arg = 2,
+        Capture = 3,
+    };
+
     struct PublicSymbol {
         uint32_t name_offset;
         uint32_t offset;
@@ -157,7 +165,7 @@ namespace lamar {
         std::unique_ptr<char> string_table;
         std::vector<PublicSymbol> public_symbol_table;
         std::vector<OpCode> program_code;
-
+        std::string file_name;
     };
 }
 

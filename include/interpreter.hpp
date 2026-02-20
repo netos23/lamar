@@ -41,7 +41,7 @@ namespace lamar {
 
         inline uint32_t read_uint();
 
-        inline uint32_t read_uint8();
+        inline uint8_t read_uint8();
 
         Value get_local(int32_t address);
 

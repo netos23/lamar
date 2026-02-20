@@ -2,7 +2,7 @@
 // Created by Nikita Morozov on 04.02.2026.
 //
 
-#include "interpreter.hpp"
+#include "value.hpp"
 
 lamar::Value::Value() : repr_(0) {}
 

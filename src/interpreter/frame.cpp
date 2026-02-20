@@ -42,7 +42,7 @@ uint32_t lamar::Frame::get_sp() const {
     return sp_;
 }
 
-uint32_t lamar::Frame::get_return_addres() {
+uint32_t lamar::Frame::get_return_address() const {
     return return_address_;
 }
 

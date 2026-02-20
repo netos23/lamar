@@ -43,9 +43,9 @@ namespace lamar {
 
         [[nodiscard]] uint32_t get_sp() const;
 
-        uint32_t get_return_addres();
+        [[nodiscard]] uint32_t get_return_address() const;
 
-        bool is_closure() const;
+        [[nodiscard]] bool is_closure() const;
 
     private:
         uint32_t return_address_ = ninit;

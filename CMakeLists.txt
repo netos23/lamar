@@ -29,15 +29,17 @@ add_executable(lamar
         src/interpreter/frame.cpp
 )
 
-target_include_directories(lamar PRIVATE include/ ${RUNTIME_DIR})
-target_link_libraries(lamar PRIVATE runtime)
-
-if(CMAKE_BUILD_TYPE MATCHES "Debug")
+if (CMAKE_BUILD_TYPE MATCHES "Debug")
     set(
             CMAKE_C_FLAGS
             "${CMAKE_C_FLAGS} -Werror -fsanitize=undefined -fsanitize=address"
     )
     target_link_options(lamar
-            BEFORE PUBLIC -fsanitize=undefined PUBLIC -fsanitize=address
+            BEFORE PRIVATE -fsanitize=undefined -fsanitize=address
     )
-endif()
+endif ()
+
+
+target_include_directories(lamar PRIVATE include/ ${RUNTIME_DIR})
+target_link_libraries(lamar PRIVATE runtime)
+

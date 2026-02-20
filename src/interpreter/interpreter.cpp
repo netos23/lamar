@@ -208,7 +208,7 @@ void lamar::Interpreter::interpret() {
 
 
 void lamar::Interpreter::push_error_diagnostic(std::string_view message) {
-    std::string formated_message = std::string(message) + "At: %#08X\\n";
+    std::string formated_message = std::string(message) + "At: %#08X\n";
 
     char *formated_message_data = const_cast<char *>(formated_message.c_str());
     failure(formated_message_data, ip);
@@ -224,6 +224,7 @@ void lamar::Interpreter::init_stack() {
     __gc_stack_top = stack_.data();
     __gc_stack_bottom = stack_.data() + stack_size;
 
+    // todo extract const
     call_stack_.reserve(100);
     // main frame
     call_stack_.emplace_back(
@@ -257,7 +258,7 @@ lamar::Value lamar::Interpreter::pop() {
 lamar::Value lamar::Interpreter::peek(uint32_t offset) {
 #ifndef DISABLE_RUNTIME_CHECKS
     if (stack_size() <= 0) {
-        push_error_diagnostic("No such element on stack to pop");
+        push_error_diagnostic("No such element on stack to peek");
     }
 #endif
 
@@ -278,7 +279,7 @@ uint32_t lamar::Interpreter::read_uint() {
     return res;
 }
 
-uint32_t lamar::Interpreter::read_uint8() {
+uint8_t lamar::Interpreter::read_uint8() {
 #ifndef DISABLE_RUNTIME_CHECKS
     if (ip + sizeof(uint8_t) > byte_file_.program_code.size()) {
         push_error_diagnostic("Index out of bounds, while read constant from code");
@@ -507,7 +508,7 @@ void lamar::Interpreter::interpret_s_exp() {
 
 #ifndef DISABLE_RUNTIME_CHECKS
     if (size < 0) {
-        push_error_diagnostic("One or more operands are not integers");
+        push_error_diagnostic("Wrong size of s-expression");
     }
 
     if (tag <= 0 || tag >= byte_file_.string_table_size) {
@@ -519,7 +520,7 @@ void lamar::Interpreter::interpret_s_exp() {
     auto tag_hash = LtagHash(ptr);
 
     std::vector<aint> args;
-    args.reserve(size + 1);
+    args.resize(size + 1);
     for (int i = static_cast<int>(size - 1); i >= 0; --i) {
         auto arg = pop();
         args[i] = static_cast<aint>(arg.as_repr());
@@ -602,7 +603,7 @@ inline void lamar::Interpreter::interpret_end() {
 
     __gc_stack_bottom = static_cast<auint *>(__gc_stack_top + next_sp);
 
-    auto prev_ip = frame.get_return_addres();
+    auto prev_ip = frame.get_return_address();
     if(prev_ip != Frame::ninit){
         ip = prev_ip;
     }
@@ -897,7 +898,7 @@ inline void lamar::Interpreter::interpret_closure() {
 
 
     std::vector<aint> args;
-    args.reserve(count + 1);
+    args.resize(count + 1);
     args[0] = static_cast<aint>(address);
     decltype(auto) frame = call_stack_.back();
 
@@ -935,7 +936,7 @@ inline void lamar::Interpreter::interpret_callc() {
     auto closure = peek(args_count);
 #ifndef DISABLE_RUNTIME_CHECKS
     if (!closure.is_closure()) {
-        push_error_diagnostic("Target code isn`t closure");
+        push_error_diagnostic("Target code isn't closure");
     }
 #endif
     auto closure_data = TO_DATA(closure.as_ptr());
@@ -1025,12 +1026,13 @@ inline void lamar::Interpreter::interpret_fail() {
     auto column = read_uint();
     auto value = pop();
 
-    Bmatch_failure(value.as_ptr(), byte_file_.file_name.data(), line, column);
+    Bmatch_failure(value.as_ptr(), &byte_file_.file_name[0], line, column);
 }
 
 inline void lamar::Interpreter::interpret_line() {
-    // todo
-    read_uint();
+    auto line = read_uint();
+    decltype(auto) frame = call_stack_.back();
+    frame.set_line(line);
 }
 
 inline void lamar::Interpreter::interpret_patteqstr() {
@@ -1131,7 +1133,7 @@ inline void lamar::Interpreter::interpret_call_barray() {
 #endif
 
     std::vector<aint> args;
-    args.reserve(len);
+    args.resize(len);
     for (int i = static_cast<int>(len - 1); i >= 0; --i) {
         auto arg = pop();
         args[i] = static_cast<aint>(arg.as_repr());

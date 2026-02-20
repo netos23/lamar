@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.29)
-project(lamar)
+project(lamar CXX C ASM)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_OSX_ARCHITECTURES "x86_64")
@@ -33,6 +33,10 @@ if (CMAKE_BUILD_TYPE MATCHES "Debug")
     set(
             CMAKE_C_FLAGS
             "${CMAKE_C_FLAGS} -Werror -fsanitize=undefined -fsanitize=address"
+    )
+    set(
+            CMAKE_CXX_FLAGS
+            "${CMAKE_CXX_FLAGS} -fsanitize=undefined -fsanitize=address"
     )
     target_link_options(lamar
             BEFORE PRIVATE -fsanitize=undefined -fsanitize=address

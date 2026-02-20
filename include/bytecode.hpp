@@ -7,6 +7,8 @@
 
 #include <vector>
 #include <cstdint>
+#include <memory>
+#include <string>
 
 namespace lamar {
     // todo: more docs for opcodes

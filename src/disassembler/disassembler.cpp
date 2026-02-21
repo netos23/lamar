@@ -11,9 +11,7 @@
 #include <stdexcept>
 #include <string_view>
 
-namespace {
-    using lamar::ByteFile;
-    using lamar::OpCode;
+namespace lamar {
 
     int32_t read_int32(const uint8_t *&ip, const uint8_t *end) {
         if (end - ip < static_cast<std::ptrdiff_t>(sizeof(int32_t))) {
@@ -25,9 +23,21 @@ namespace {
         ip += sizeof(val);
         return val;
     }
-}
 
-namespace lamar {
+    std::string_view read_string(const ByteFile &file, int32_t offset) {
+        if (offset < 0 || static_cast<uint32_t>(offset) >= file.string_table_size) {
+            throw std::runtime_error("Invalid string offset in bytecode");
+        }
+
+        const char *start = file.string_table.get() + offset;
+        const auto max_len = file.string_table_size - static_cast<uint32_t>(offset);
+        size_t len = 0;
+        while (len < max_len && start[len] != '\0') {
+            ++len;
+        }
+        return {start, len};
+    }
+
     void Disassembler::disassemble(const ByteFile &byte_file, std::ostream &output) const {
         output << "String table size       : " << byte_file.string_table_size << '\n';
         output << "Global area size        : " << byte_file.global_area_size << '\n';

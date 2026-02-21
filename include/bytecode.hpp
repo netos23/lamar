@@ -169,8 +169,6 @@ namespace lamar {
         std::vector<OpCode> program_code;
         std::string file_name;
     };
-
-    std::string_view read_string(const ByteFile &file, int32_t offset);
 }
 
 #endif //LAMAR_BYTECODE_HPP

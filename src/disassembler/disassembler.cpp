@@ -11,9 +11,7 @@
 #include <stdexcept>
 #include <string_view>
 
-namespace {
-    using lamar::ByteFile;
-    using lamar::OpCode;
+namespace lamar {
 
     int32_t read_int32(const uint8_t *&ip, const uint8_t *end) {
         if (end - ip < static_cast<std::ptrdiff_t>(sizeof(int32_t))) {
@@ -39,9 +37,7 @@ namespace {
         }
         return {start, len};
     }
-}
 
-namespace lamar {
     void Disassembler::disassemble(const ByteFile &byte_file, std::ostream &output) const {
         output << "String table size       : " << byte_file.string_table_size << '\n';
         output << "Global area size        : " << byte_file.global_area_size << '\n';

@@ -3,10 +3,12 @@
 #include <string>
 #include "loader.hpp"
 #include "disassembler.hpp"
+#include "interpreter.hpp"
 
-int main(int argc, char** argv) {
+int main(int argc, char **argv) {
     auto print_usage = []() {
-        std::cerr << "Usage: lamar [--print-disassemble|--disassemble-file=<path>] [--disassemble-only] <bytecode-file>" << '\n';
+        std::cerr << "Usage: lamar [--print-disassemble|--disassemble-file=<path>] [--disassemble-only] <bytecode-file>"
+                  << '\n';
     };
 
     bool print_disassemble = false;
@@ -58,7 +60,7 @@ int main(int argc, char** argv) {
         return 1;
     }
 
-    lamar::Loader loader(is);
+    lamar::Loader loader(is, input_path);
     auto file = loader.read_byte_file();
 
     lamar::Disassembler disassembler;
@@ -79,6 +81,10 @@ int main(int argc, char** argv) {
     if (disassemble_only) {
         return 0;
     }
+
+    lamar::Interpreter interpreter{std::move(file)};
+    interpreter.interpret();
+
 
     return 0;
 }

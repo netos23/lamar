@@ -4,12 +4,12 @@ set -euo pipefail
 # Run lamar for all .bc files, feed matching .input, and compare stdout with
 # expected .t files (ignoring shell/prompt prefixes from the reference output).
 # Environment overrides:
-#   BC_DIR    - directory to scan for *.bc (default: <repo>/examples)
+#   BC_DIR    - directory to scan for *.bc (default: <repo>/regression)
 #   LAMAR_BIN - path to lamar executable
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-BC_DIR="${BC_DIR:-${ROOT_DIR}/examples}"
-LAMAR_BIN="${LAMAR_BIN:-${ROOT_DIR}/cmake-build-debug/lamar}"
+BC_DIR="${BC_DIR:-${ROOT_DIR}/regression}"
+LAMAR_BIN="${LAMAR_BIN:-${ROOT_DIR}/cmake-build-release/lamar}"
 
 if [[ ! -x "${LAMAR_BIN}" ]]; then
   echo "::error file=${LAMAR_BIN}::lamar executable not found or not executable" >&2
@@ -37,8 +37,9 @@ trap 'rm -rf "${TMP_DIR}"' EXIT
 normalize_expected() {
   local src="$1" dst="$2"
   sed -E \
-    -e 's/^[[:space:]]*\$.*$//' \
-    -e 's/^[[:space:]]*(>+[[:space:]]*)+//' \
+    -e '/^[[:space:]]*\$/{d;}' \
+    -e 's/>[[:space:]]+/>/g' \
+    -e 's/[[:space:]]+/ /g' \
     -e 's/^[[:space:]]+//' \
     -e 's/[[:space:]]+$//' \
     "$src" | sed '/^[[:space:]]*$/d' >"$dst"
@@ -47,6 +48,8 @@ normalize_expected() {
 normalize_actual() {
   local src="$1" dst="$2"
   sed -E \
+    -e 's/>[[:space:]]+/>/g' \
+    -e 's/[[:space:]]+/ /g' \
     -e 's/^[[:space:]]+//' \
     -e 's/[[:space:]]+$//' \
     "$src" | sed '/^[[:space:]]*$/d' >"$dst"
@@ -82,14 +85,33 @@ for BC_FILE in "${BC_FILES[@]}"; do
     continue
   fi
 
+  EXPECT_FATAL=0
+  if grep -qi 'Fatal' "${EXPECT_FILE}"; then
+    EXPECT_FATAL=1
+  fi
+
   LM_RAW_OUT="${TMP_DIR}/lamar_${TOTAL}.out"
   LM_ERR="${TMP_DIR}/lamar_${TOTAL}.err"
   EXP_NORM="${TMP_DIR}/expected_${TOTAL}.txt"
   ACT_NORM="${TMP_DIR}/actual_${TOTAL}.txt"
   DIFF_FILE="${TMP_DIR}/diff_${TOTAL}.txt"
 
-  if ! "${LAMAR_BIN}" "${BC_FILE}" <"${INPUT_FILE}" >"${LM_RAW_OUT}" 2>"${LM_ERR}"; then
-    STATUS=$?
+  STATUS=0
+  "${LAMAR_BIN}" "${BC_FILE}" <"${INPUT_FILE}" >"${LM_RAW_OUT}" 2>"${LM_ERR}" || STATUS=$?
+
+  if (( EXPECT_FATAL )); then
+    if (( STATUS == 0 )); then
+      ((FAIL++))
+      echo "::error file=${BC_FILE}::Expected non-zero exit (fatal expected in ${EXPECT_FILE}). Got code ${STATUS}" >&2
+      FAILURES+=("${BC_FILE}: expected fatal exit")
+    else
+      ((PASS++))
+      echo "::notice file=${BC_FILE}::PASS (fatal expected, exit ${STATUS})" >&2
+    fi
+    continue
+  fi
+
+  if (( STATUS != 0 )); then
     ((FAIL++))
     ERR_MSG=$(tr -d '\r' <"${LM_ERR}" | head -c 400)
     echo "::error file=${BC_FILE}::lamar failed (exit ${STATUS}) ${ERR_MSG}" >&2

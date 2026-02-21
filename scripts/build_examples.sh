@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-LAMAC="lamac"
+LAMAC="${LAMAC:-lamac}"
 while getopts "d" opt; do
   case "$opt" in
     d) LAMAC="/home/user/.opam/4.14.2/bin/lamac" ;;

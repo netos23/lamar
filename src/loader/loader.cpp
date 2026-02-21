@@ -50,6 +50,7 @@ lamar::ByteFile lamar::Loader::read_byte_file() {
             .string_table = std::move(string_table),
             .public_symbol_table = std::move(symbol_table),
             .program_code =  std::move(program_code),
+            .file_name = file_name_,
     };
 }
 
@@ -63,10 +64,11 @@ std::vector<lamar::OpCode> lamar::Loader::read_bytecode() {
     std::vector<lamar::OpCode> res;
     res.resize(len);
 
-    input_stream_.read(reinterpret_cast<char*>(res.data()), len);
+    input_stream_.read(reinterpret_cast<char *>(res.data()), len);
 
     return res;
 }
 
-lamar::Loader::Loader( std::istream &inputStream) : input_stream_(inputStream) {}
+lamar::Loader::Loader(std::istream &inputStream, std::string file_name) : input_stream_(inputStream),
+                                                                          file_name_(std::move(file_name)) {}
  

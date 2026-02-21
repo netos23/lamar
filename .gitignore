@@ -1,10 +1,12 @@
 cmake-build-debug/*
 cmake-build-debug/
+**/cmake-build**/**
+**/cmake-build**/
 .idea
 .idea/*
 
-examples/
-examples/*
+regression/
+regression/*
 
 **/.DS_Store
 .DS_Store

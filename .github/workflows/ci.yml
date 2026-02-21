@@ -41,7 +41,9 @@ jobs:
       - name: Build lamar and byterun (Release)
         run: cmake --build cmake-build-release --config Release --target lamar byterun -- -j2
 
-      - name: Build example bytecode
+      - name: Build regression bytecode
+        env:
+          LAMAC: $(opam var bin 2>/dev/null)/lamac
         run: ./scripts/make_examples.sh
 
       - name: Run bytecode disassembly tests

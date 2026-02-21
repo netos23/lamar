@@ -4,11 +4,11 @@ set -euo pipefail
 # Run lamar for all .bc files, feed matching .input, and compare stdout with
 # expected .t files (ignoring shell/prompt prefixes from the reference output).
 # Environment overrides:
-#   BC_DIR    - directory to scan for *.bc (default: <repo>/examples)
+#   BC_DIR    - directory to scan for *.bc (default: <repo>/regression)
 #   LAMAR_BIN - path to lamar executable
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-BC_DIR="${BC_DIR:-${ROOT_DIR}/examples}"
+BC_DIR="${BC_DIR:-${ROOT_DIR}/regression}"
 LAMAR_BIN="${LAMAR_BIN:-${ROOT_DIR}/cmake-build-release/lamar}"
 
 if [[ ! -x "${LAMAR_BIN}" ]]; then

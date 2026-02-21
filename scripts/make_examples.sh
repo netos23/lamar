@@ -3,7 +3,7 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 REG_DIR="${ROOT_DIR}/third_party/Lama/regression"
-EXAMPLES_DIR="${ROOT_DIR}/examples"
+REGRESSION_DIR="${ROOT_DIR}/regression"
 
 USE_DOCKER=false
 BUILD_ARGS=""
@@ -15,7 +15,7 @@ while getopts "d" opt; do
 done
 shift $((OPTIND - 1))
 
-mkdir -p "${EXAMPLES_DIR}"
+mkdir -p "${REGRESSION_DIR}"
 cp "${ROOT_DIR}/scripts/build_examples.sh" "${REG_DIR}/build_examples.sh"
 chmod +x "${REG_DIR}/build_examples.sh"
 
@@ -28,7 +28,7 @@ fi
 shopt -s nullglob
 files=("${REG_DIR}"/*.input "${REG_DIR}"/*.lama "${REG_DIR}"/*.t "${REG_DIR}"/*.bc)
 if [ ${#files[@]} -gt 0 ]; then
-  cp "${files[@]}" "${EXAMPLES_DIR}/"
+  cp "${files[@]}" "${REGRESSION_DIR}/"
 fi
 shopt -u nullglob
 

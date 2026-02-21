@@ -5,8 +5,8 @@ cmake-build-debug/
 .idea
 .idea/*
 
-examples/
-examples/*
+regression/
+regression/*
 
 **/.DS_Store
 .DS_Store

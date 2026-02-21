@@ -3,14 +3,14 @@ set -euo pipefail
 
 # Compare byterun and lamar outputs for all .bc files.
 # Environment overrides:
-#   BC_DIR       - directory to scan for *.bc (default: <repo>/examples)
+#   BC_DIR       - directory to scan for *.bc (default: <repo>/regression)
 #   BYTERUN_BIN  - path to byterun executable
 #   LAMAR_BIN    - path to lamar executable
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-BC_DIR="${BC_DIR:-${ROOT_DIR}/examples}"
-BYTERUN_BIN="${BYTERUN_BIN:-${ROOT_DIR}/cmake-build-debug/third_party/Lama/byterun/byterun}"
-LAMAR_BIN="${LAMAR_BIN:-${ROOT_DIR}/cmake-build-debug/lamar}"
+BC_DIR="${BC_DIR:-${ROOT_DIR}/regression}"
+BYTERUN_BIN="${BYTERUN_BIN:-${ROOT_DIR}/cmake-build-release/third_party/Lama/byterun/byterun}"
+LAMAR_BIN="${LAMAR_BIN:-${ROOT_DIR}/cmake-build-release/lamar}"
 
 if [[ ! -x "${BYTERUN_BIN}" ]]; then
   echo "::error file=${BYTERUN_BIN}::byterun executable not found or not executable" >&2

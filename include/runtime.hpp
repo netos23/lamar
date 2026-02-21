@@ -9,8 +9,11 @@
 extern "C" {
 #endif
 
+#define _Noreturn [[noreturn]] // NOLINT(bugprone-reserved-identifier)
+
 #include "gc.h"
 #include "runtime.h"
+
 
 extern auint *__gc_stack_top;
 extern auint *__gc_stack_bottom;

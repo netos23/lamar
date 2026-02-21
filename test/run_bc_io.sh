@@ -85,14 +85,33 @@ for BC_FILE in "${BC_FILES[@]}"; do
     continue
   fi
 
+  EXPECT_FATAL=0
+  if grep -qi 'Fatal' "${EXPECT_FILE}"; then
+    EXPECT_FATAL=1
+  fi
+
   LM_RAW_OUT="${TMP_DIR}/lamar_${TOTAL}.out"
   LM_ERR="${TMP_DIR}/lamar_${TOTAL}.err"
   EXP_NORM="${TMP_DIR}/expected_${TOTAL}.txt"
   ACT_NORM="${TMP_DIR}/actual_${TOTAL}.txt"
   DIFF_FILE="${TMP_DIR}/diff_${TOTAL}.txt"
 
-  if ! "${LAMAR_BIN}" "${BC_FILE}" <"${INPUT_FILE}" >"${LM_RAW_OUT}" 2>"${LM_ERR}"; then
-    STATUS=$?
+  STATUS=0
+  "${LAMAR_BIN}" "${BC_FILE}" <"${INPUT_FILE}" >"${LM_RAW_OUT}" 2>"${LM_ERR}" || STATUS=$?
+
+  if (( EXPECT_FATAL )); then
+    if (( STATUS == 0 )); then
+      ((FAIL++))
+      echo "::error file=${BC_FILE}::Expected non-zero exit (fatal expected in ${EXPECT_FILE}). Got code ${STATUS}" >&2
+      FAILURES+=("${BC_FILE}: expected fatal exit")
+    else
+      ((PASS++))
+      echo "::notice file=${BC_FILE}::PASS (fatal expected, exit ${STATUS})" >&2
+    fi
+    continue
+  fi
+
+  if (( STATUS != 0 )); then
     ((FAIL++))
     ERR_MSG=$(tr -d '\r' <"${LM_ERR}" | head -c 400)
     echo "::error file=${BC_FILE}::lamar failed (exit ${STATUS}) ${ERR_MSG}" >&2

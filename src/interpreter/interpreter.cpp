@@ -200,10 +200,6 @@ void lamar::Interpreter::interpret() {
                 ip = Frame::ninit;
                 break;
         }
-
-        if (ip == Frame::ninit) {
-            break;
-        }
     }
 
     __shutdown();
@@ -247,6 +243,7 @@ void lamar::Interpreter::push(lamar::Value v) {
     }
     //                    push_error_diagnostic()
     stack_.push_back(v.as_repr());
+    __gc_stack_top = stack_.data();
     __gc_stack_bottom = stack_.data() + stack_.size();
 }
 
@@ -258,6 +255,7 @@ lamar::Value lamar::Interpreter::pop() {
 #endif
     auto val = stack_.back();
     stack_.pop_back();
+    __gc_stack_top = stack_.data();
     __gc_stack_bottom = stack_.data() + stack_.size();
     return lamar::Value(val);
 }
@@ -269,7 +267,7 @@ lamar::Value lamar::Interpreter::peek(uint32_t offset) {
     }
 #endif
 
-    return lamar::Value(stack_.back());
+    return lamar::Value(stack_.at(stack_.size() - 1 - offset));
 }
 
 uint32_t lamar::Interpreter::read_uint() {
@@ -439,12 +437,16 @@ void lamar::Interpreter::interpret_eq() {
     auto lhs = pop();
 
 #ifndef DISABLE_RUNTIME_CHECKS
-    if (!lhs.is_int() || !rhs.is_int()) {
+    if (!lhs.is_int() && !rhs.is_int()) {
         push_error_diagnostic("One or more operands are not integers");
     }
 #endif
 
-    aint res = lhs.as_int() == rhs.as_int();
+    aint res = 0;
+
+    if (lhs.is_int() && rhs.is_int()) {
+        res = lhs.as_int() == rhs.as_int();
+    }
     push(Value(res));
 }
 
@@ -499,13 +501,13 @@ void lamar::Interpreter::interpret_string() {
     auto index = read_uint();
 
 #ifndef DISABLE_RUNTIME_CHECKS
-    if (index <= 0 || index >= byte_file_.string_table_size) {
+    if (index < 0 || index >= byte_file_.string_table_size) {
         push_error_diagnostic("String index out of bounds");
     }
 #endif
 
     auto ptr = &byte_file_.string_table.get()[index];
-    auto str = Bstring(reinterpret_cast<aint *>(ptr));
+    auto str = Bstring(reinterpret_cast<aint *>(&ptr));
     push(Value(str));
 }
 
@@ -518,7 +520,7 @@ void lamar::Interpreter::interpret_s_exp() {
         push_error_diagnostic("Wrong size of s-expression");
     }
 
-    if (tag <= 0 || tag >= byte_file_.string_table_size) {
+    if (tag < 0 || tag >= byte_file_.string_table_size) {
         push_error_diagnostic("String index out of bounds");
     }
 #endif
@@ -571,7 +573,7 @@ void lamar::Interpreter::interpret_sta() {
         }
 #endif
 
-        Bsta(x.as_ptr(), i, val.as_ptr());
+        Bsta(x.as_ptr(), index.as_repr(), val.as_ptr());
     } else {
 
 #ifndef DISABLE_RUNTIME_CHECKS
@@ -609,6 +611,7 @@ inline void lamar::Interpreter::interpret_end() {
 
 
     stack_.resize(next_sp);
+    __gc_stack_top = stack_.data();
     __gc_stack_bottom = stack_.data() + stack_.size();
 
     auto prev_ip = frame.get_return_address();
@@ -654,7 +657,7 @@ inline void lamar::Interpreter::interpret_elem() {
     }
 #endif
 
-    auto value = Belem(x.as_ptr(), index.as_int());
+    auto value = Belem(x.as_ptr(), index.as_repr());
 
     push(Value(value));
 }
@@ -896,7 +899,7 @@ inline void lamar::Interpreter::interpret_closure() {
     auto address = read_uint();
 
 #ifndef DISABLE_RUNTIME_CHECKS
-    if (byte_file_.program_code.size() <= address || address <= 0) {
+    if (byte_file_.program_code.size() <= address || address < 0) {
         push_error_diagnostic("Closure address out of bounds");
     }
 #endif
@@ -910,12 +913,9 @@ inline void lamar::Interpreter::interpret_closure() {
     decltype(auto) frame = call_stack_.back();
 
     for (int i = 0; i < count; i++) {
-        auto arg = pop();
-        args[i] = static_cast<aint>(arg.as_repr());
-
         auto type = static_cast<ClosureArgType>(byte_file_.program_code.at(ip++));
 
-        auto arg_address = read_uint8();
+        auto arg_address = read_uint();
 
         switch (type) {
             case Global:
@@ -933,6 +933,7 @@ inline void lamar::Interpreter::interpret_closure() {
         }
     }
 
+    // todo dirty place
     auto closure = Bclosure(args.data(), BOX(count + 1));
     push(Value(closure));
 }
@@ -1002,14 +1003,14 @@ inline void lamar::Interpreter::interpret_tag() {
         push_error_diagnostic("Negative size not allowed");
     }
 
-    if (tag <= 0 || tag >= byte_file_.string_table_size) {
+    if (tag < 0 || tag >= byte_file_.string_table_size) {
         push_error_diagnostic("String index out of bounds");
     }
 #endif
 
     auto probe = pop();
     if (!probe.is_s_expr()) {
-        push(Value());
+        push(Value(aint(0)));
         return;
     }
 
@@ -1127,14 +1128,15 @@ inline void lamar::Interpreter::interpret_call_llength() {
 inline void lamar::Interpreter::interpret_call_lstring() {
     auto value = pop();
     // todo validate
-    auto str = Lstring(static_cast<aint *>(value.as_ptr()));
+    void *ptr = value.as_ptr();
+    auto str = Lstring(reinterpret_cast<aint *>(&ptr));
     push(Value(str));
 }
 
 inline void lamar::Interpreter::interpret_call_barray() {
     auto len = read_uint();
 #ifndef DISABLE_RUNTIME_CHECKS
-    if (len <= 0) {
+    if (len < 0) {
         push_error_diagnostic("Try allocate zero or negative length array");
     }
 #endif

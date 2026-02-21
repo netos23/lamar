@@ -41,10 +41,12 @@ jobs:
       - name: Build lamar and byterun (Release)
         run: cmake --build cmake-build-release --config Release --target lamar byterun -- -j2
 
-      - name: Build regression bytecode
+      - name: Build tests
         env:
-          LAMAC: $(opam var bin 2>/dev/null)/lamac
-        run: ./scripts/make_examples.sh
+          LAMAC: /home/runner/.opam/4.14.2/bin/lamac
+        run: |
+          ./scripts/make_examples.sh
+          ./scripts/make_perf.sh
 
       - name: Run bytecode disassembly tests
         env:
@@ -56,3 +58,9 @@ jobs:
         env:
           LAMAR_BIN: ${{ github.workspace }}/cmake-build-release/lamar
         run: ./test/run_bc_io.sh
+
+      - name: Run performance tests
+        env:
+          LAMAR_BIN: ${{ github.workspace }}/cmake-build-release/lamar
+          LAMAC_BIN: /home/runner/.opam/4.14.2/bin/lamac
+        run: ./test/run_performance.sh

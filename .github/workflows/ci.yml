@@ -34,6 +34,15 @@ jobs:
           opam pin add Lama https://github.com/PLTools/Lama.git#1.30 --no-action --yes
           opam install Lama --yes
           opam env --switch=lama --set-switch --shell=sh >> "$GITHUB_ENV"
+          if ! LAMAC_BIN="$(which lamac)"; then
+            echo "::error::lamac executable not found via which" >&2
+            exit 1
+          fi
+          if [ ! -x "$LAMAC_BIN" ]; then
+            echo "::error::LAMAC_BIN=$LAMAC_BIN is not executable" >&2
+            exit 1
+          fi
+          echo "LAMAC_BIN=${LAMAC_BIN}" >> "$GITHUB_ENV"
 
       - name: Configure CMake (Release)
         run: cmake -S . -B cmake-build-release -DCMAKE_BUILD_TYPE=Release
@@ -41,10 +50,10 @@ jobs:
       - name: Build lamar and byterun (Release)
         run: cmake --build cmake-build-release --config Release --target lamar byterun -- -j2
 
-      - name: Build regression bytecode
-        env:
-          LAMAC: $(opam var bin 2>/dev/null)/lamac
-        run: ./scripts/make_examples.sh
+      - name: Build tests
+        run: |
+          ./scripts/make_examples.sh
+          ./scripts/make_perf.sh
 
       - name: Run bytecode disassembly tests
         env:
@@ -56,3 +65,8 @@ jobs:
         env:
           LAMAR_BIN: ${{ github.workspace }}/cmake-build-release/lamar
         run: ./test/run_bc_io.sh
+
+      - name: Run performance tests
+        env:
+          LAMAR_BIN: ${{ github.workspace }}/cmake-build-release/lamar
+        run: ./test/run_performance.sh

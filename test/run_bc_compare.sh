@@ -9,8 +9,8 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 BC_DIR="${BC_DIR:-${ROOT_DIR}/regression}"
-BYTERUN_BIN="${BYTERUN_BIN:-${ROOT_DIR}/cmake-build-release/third_party/Lama/byterun/byterun}"
-LAMAR_BIN="${LAMAR_BIN:-${ROOT_DIR}/cmake-build-release/lamar}"
+BYTERUN_BIN="${BYTERUN_BIN:-${ROOT_DIR}/cmake-build-debug/third_party/Lama/byterun/byterun}"
+LAMAR_BIN="${LAMAR_BIN:-${ROOT_DIR}/cmake-build-debug/lamar}"
 
 if [[ ! -x "${BYTERUN_BIN}" ]]; then
   echo "::error file=${BYTERUN_BIN}::byterun executable not found or not executable" >&2
@@ -48,7 +48,7 @@ FAILURES=()
 echo "Running ${#BC_FILES[@]} bytecode checks..."
 
 for BC_FILE in "${BC_FILES[@]}"; do
-  ((TOTAL++))
+  ((++TOTAL))
   echo "[${TOTAL}] ${BC_FILE}" >&2
 
   BR_OUT="${TMP_DIR}/byterun_${TOTAL}.out"
@@ -58,7 +58,7 @@ for BC_FILE in "${BC_FILES[@]}"; do
 
   if ! "${BYTERUN_BIN}" "${BC_FILE}" >"${BR_OUT}" 2>"${BR_ERR}"; then
     STATUS=$?
-    ((FAIL++))
+    ((++FAIL))
     ERR_MSG=$(tr -d '\r' <"${BR_ERR}" | head -c 400)
     echo "::error file=${BC_FILE}::byterun failed (exit ${STATUS}) ${ERR_MSG}" >&2
     FAILURES+=("${BC_FILE}: byterun failed")
@@ -67,7 +67,7 @@ for BC_FILE in "${BC_FILES[@]}"; do
 
   if ! "${LAMAR_BIN}" --print-disassemble --disassemble-only "${BC_FILE}" >"${LM_OUT}" 2>"${LM_ERR}"; then
     STATUS=$?
-    ((FAIL++))
+    ((++FAIL))
     ERR_MSG=$(tr -d '\r' <"${LM_ERR}" | head -c 400)
     echo "::error file=${BC_FILE}::lamar failed (exit ${STATUS}) ${ERR_MSG}" >&2
     FAILURES+=("${BC_FILE}: lamar failed")
@@ -75,14 +75,14 @@ for BC_FILE in "${BC_FILES[@]}"; do
   fi
 
   if ! diff -u "${BR_OUT}" "${LM_OUT}" >"${TMP_DIR}/diff_${TOTAL}.txt"; then
-    ((FAIL++))
+    ((++FAIL))
     echo "::error file=${BC_FILE}::Output mismatch between byterun and lamar" >&2
     cat "${TMP_DIR}/diff_${TOTAL}.txt"
     FAILURES+=("${BC_FILE}: output mismatch")
     continue
   fi
 
-  ((PASS++))
+  ((++PASS))
   echo "::notice file=${BC_FILE}::PASS" >&2
 
 done

@@ -57,7 +57,7 @@ measure_time() {
   shift 2
 
   local id=${MEASURE_ID}
-  ((MEASURE_ID++))
+  ((++MEASURE_ID))
 
   local err_file="${TMP_DIR}/err_${id}.log"
   local status=0 duration

@@ -63,7 +63,7 @@ FAILURES=()
 echo "Running ${#BC_FILES[@]} IO checks..."
 
 for BC_FILE in "${BC_FILES[@]}"; do
-  ((TOTAL++))
+  ((++TOTAL))
   echo "[${TOTAL}] ${BC_FILE}" >&2
 
   DIRNAME="$(dirname "${BC_FILE}")"
@@ -72,14 +72,14 @@ for BC_FILE in "${BC_FILES[@]}"; do
   EXPECT_FILE="${DIRNAME}/${BASENAME}.t"
 
   if [[ ! -f "${INPUT_FILE}" ]]; then
-    ((FAIL++))
+    ((++FAIL))
     echo "::error file=${INPUT_FILE}::input file not found" >&2
     FAILURES+=("${BC_FILE}: missing input")
     continue
   fi
 
   if [[ ! -f "${EXPECT_FILE}" ]]; then
-    ((FAIL++))
+    ((++FAIL))
     echo "::error file=${EXPECT_FILE}::expected .t file not found" >&2
     FAILURES+=("${BC_FILE}: missing expected")
     continue
@@ -101,18 +101,18 @@ for BC_FILE in "${BC_FILES[@]}"; do
 
   if (( EXPECT_FATAL )); then
     if (( STATUS == 0 )); then
-      ((FAIL++))
+      ((++FAIL))
       echo "::error file=${BC_FILE}::Expected non-zero exit (fatal expected in ${EXPECT_FILE}). Got code ${STATUS}" >&2
       FAILURES+=("${BC_FILE}: expected fatal exit")
     else
-      ((PASS++))
+      ((++PASS))
       echo "::notice file=${BC_FILE}::PASS (fatal expected, exit ${STATUS})" >&2
     fi
     continue
   fi
 
   if (( STATUS != 0 )); then
-    ((FAIL++))
+    ((++FAIL))
     ERR_MSG=$(tr -d '\r' <"${LM_ERR}" | head -c 400)
     echo "::error file=${BC_FILE}::lamar failed (exit ${STATUS}) ${ERR_MSG}" >&2
     FAILURES+=("${BC_FILE}: lamar failed")
@@ -123,14 +123,14 @@ for BC_FILE in "${BC_FILES[@]}"; do
   normalize_actual "${LM_RAW_OUT}" "${ACT_NORM}"
 
   if ! diff -u "${EXP_NORM}" "${ACT_NORM}" >"${DIFF_FILE}"; then
-    ((FAIL++))
+    ((++FAIL))
     echo "::error file=${BC_FILE}::Output mismatch against ${EXPECT_FILE}" >&2
     cat "${DIFF_FILE}"
     FAILURES+=("${BC_FILE}: output mismatch")
     continue
   fi
 
-  ((PASS++))
+  ((++PASS))
   echo "::notice file=${BC_FILE}::PASS" >&2
 
 done

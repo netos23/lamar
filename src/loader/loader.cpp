@@ -76,7 +76,7 @@ std::vector<lamar::OpCode> lamar::Loader::read_bytecode() {
         diagnostics::push_error_diagnostic("Failed to determine bytecode end offset", static_cast<uint32_t>(pos));
         return {};
     }
-    auto len = end - pos + 1;
+    auto len = end - pos;
     if (len <= 0) {
         diagnostics::push_error_diagnostic("Malformed bytefile length", static_cast<uint32_t>(pos));
         return {};

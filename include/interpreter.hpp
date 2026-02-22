@@ -58,11 +58,11 @@ namespace lamar {
 
         Value get_capture_address(int32_t address);
 
-        void set_local(int32_t address, Value& value);
+        void set_local(int32_t address, Value &value);
 
-        void set_arg(int32_t address, Value& value);
+        void set_arg(int32_t address, Value &value);
 
-        void set_capture(int32_t address, Value& value);
+        void set_capture(int32_t address, Value &value);
 
         inline void interpret_add();
 
@@ -138,6 +138,8 @@ namespace lamar {
 
         inline void interpret_cjmpz();
 
+        inline void interpret_conditional_jump(bool jump_on_true);
+
         inline void interpret_cjmpnz();
 
         inline void interpret_begin();
@@ -181,6 +183,74 @@ namespace lamar {
         inline void interpret_call_lstring();
 
         inline void interpret_call_barray();
+
+
+        template<typename Operation, typename ExtraCheck>
+        inline void interpret_binop(Operation op, ExtraCheck extra_check) {
+            auto rhs = pop();
+            auto lhs = pop();
+
+#ifndef DISABLE_RUNTIME_CHECKS
+            if (!lhs.is_int() || !rhs.is_int()) {
+                push_error_diagnostic("One or more operands are not integers");
+            }
+#endif
+
+            const auto l = lhs.as_int();
+            const auto r = rhs.as_int();
+
+#ifndef DISABLE_RUNTIME_CHECKS
+            extra_check(l, r);
+#endif
+
+            push(Value(op(l, r)));
+        }
+
+        template<typename Operation>
+        inline void interpret_binop(Operation op) {
+            interpret_binop(op, [](aint, aint) {});
+        }
+
+        template<typename Getter>
+        inline void interpret_load(std::string_view bounds_error, Getter getter) {
+            auto address = read_uint();
+
+#ifndef DISABLE_RUNTIME_CHECKS
+            if (stack_.size() <= address || address < 0) {
+                push_error_diagnostic(bounds_error);
+            }
+#endif
+
+            push(getter(address));
+        }
+
+        template<typename Getter>
+        inline void interpret_load_address(std::string_view bounds_error, Getter getter) {
+            auto address = read_uint();
+
+#ifndef DISABLE_RUNTIME_CHECKS
+            if (stack_.size() <= address || address < 0) {
+                push_error_diagnostic(bounds_error);
+            }
+#endif
+
+            push(getter(address));
+        }
+
+        template<typename Setter>
+        inline void interpret_store(std::string_view bounds_error, Setter setter) {
+            auto value = pop();
+            auto address = read_uint();
+
+#ifndef DISABLE_RUNTIME_CHECKS
+            if (stack_.size() <= address || address < 0) {
+                push_error_diagnostic(bounds_error);
+            }
+#endif
+
+            setter(address, value);
+            push(value);
+        }
 
 
         uint32_t ip = 0;

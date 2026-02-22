@@ -16,9 +16,8 @@
 #define MAX_ARGS_IN_SEXP 255
 #define MAX_ARGS_IN_CLOSURE 255
 #define MAX_ARS_IN_ARRAY 255
-#define FRAME_STACK_GROWTH 3
-#define NEW_FRAME_STEP 40
-#define ZERO BOX(0)
+#define MAX_STACK_SIZE 8196
+#define MAX_CALL_STACK_SIZE 8196
 
 namespace lamar {
 
@@ -216,7 +215,7 @@ namespace lamar {
             auto address = read_uint();
 
 #ifndef DISABLE_RUNTIME_CHECKS
-            if (stack_.size() <= address || address < 0) {
+            if (stack_size() <= address) {
                 push_error_diagnostic(bounds_error);
             }
 #endif
@@ -229,7 +228,7 @@ namespace lamar {
             auto address = read_uint();
 
 #ifndef DISABLE_RUNTIME_CHECKS
-            if (stack_.size() <= address || address < 0) {
+            if (stack_size() <= address) {
                 push_error_diagnostic(bounds_error);
             }
 #endif
@@ -243,7 +242,7 @@ namespace lamar {
             auto address = read_uint();
 
 #ifndef DISABLE_RUNTIME_CHECKS
-            if (stack_.size() <= address || address < 0) {
+            if (stack_size() <= address) {
                 push_error_diagnostic(bounds_error);
             }
 #endif
@@ -254,8 +253,9 @@ namespace lamar {
 
 
         uint32_t ip = 0;
-        std::vector<auint> stack_{};
-        std::vector<Frame> call_stack_{};
+        uint32_t fp = -1;
+        auint stack_[MAX_STACK_SIZE]{};
+        Frame call_stack_[MAX_CALL_STACK_SIZE]{};
         ByteFile byte_file_;
     };
 }

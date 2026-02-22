@@ -5,6 +5,10 @@
 #ifndef LAMAR_INTERPRETER_HPP
 #define LAMAR_INTERPRETER_HPP
 
+#include <iostream>
+#include <cstring>
+#include "diagnostics.hpp"
+
 #pragma clang diagnostic push
 #pragma ide diagnostic ignored "bugprone-reserved-identifier"
 
@@ -26,159 +30,849 @@ namespace lamar {
 
     private:
 
-        inline void push_error_diagnostic(std::string_view message) const;
 
-        inline void init_stack();
-
-        inline void push(Value v);
-
-        inline Value pop();
-
-        inline Value peek(uint32_t offset = 0);
-
-        static size_t stack_size();
-
-        inline uint32_t read_uint();
-
-        inline uint8_t read_uint8();
-
-        Value get_local(int32_t address);
-
-        Value get_arg(int32_t address);
-
-        Value get_capture(int32_t address);
-
-        Value get_local_address(int32_t address);
-
-        Value get_arg_address(int32_t address);
-
-        Value get_capture_address(int32_t address);
-
-        void set_local(int32_t address, Value &value);
-
-        void set_arg(int32_t address, Value &value);
-
-        void set_capture(int32_t address, Value &value);
-
-        inline void interpret_add();
-
-        inline void interpret_sub();
-
-        inline void interpret_mul();
-
-        inline void interpret_div();
-
-        inline void interpret_mod();
-
-        inline void interpret_lt();
-
-        inline void interpret_le();
-
-        inline void interpret_gt();
-
-        inline void interpret_ge();
-
-        inline void interpret_eq();
-
-        inline void interpret_ne();
-
-        inline void interpret_and();
-
-        inline void interpret_or();
-
-        inline void interpret_const();
-
-        inline void interpret_string();
-
-        inline void interpret_s_exp();
-
-        inline void interpret_sti();
-
-        inline void interpret_sta();
-
-        inline void interpret_jmp();
-
-        inline void interpret_end();
-
-        inline void interpret_drop();
-
-        inline void interpret_dup();
-
-        inline void interpret_swap();
-
-        inline void interpret_elem();
-
-        inline void interpret_ld_g();
-
-        inline void interpret_ld_l();
-
-        inline void interpret_ld_a();
-
-        inline void interpret_ld_c();
-
-        inline void interpret_lda_g();
-
-        inline void interpret_lda_l();
-
-        inline void interpret_lda_a();
-
-        inline void interpret_lda_c();
-
-        inline void interpret_st_g();
-
-        inline void interpret_st_l();
-
-        inline void interpret_st_a();
-
-        inline void interpret_st_c();
-
-        inline void interpret_cjmpz();
-
-        inline void interpret_conditional_jump(bool jump_on_true);
-
-        inline void interpret_cjmpnz();
-
-        inline void interpret_begin();
-
-        inline void interpret_cbegin();
-
-        inline void interpret_closure();
-
-        inline void interpret_callc();
-
-        inline void interpret_call();
-
-        inline void interpret_tag();
-
-        inline void interpret_array();
-
-        inline void interpret_fail();
-
-        inline void interpret_line();
-
-        inline void interpret_patteqstr();
-
-        inline void interpret_pattstring();
-
-        inline void interpret_pattarray();
-
-        inline void interpret_pattsexp();
-
-        inline void interpret_pattref();
-
-        inline void interpret_pattval();
-
-        inline void interpret_pattfun();
-
-        inline void interpret_call_lread();
-
-        inline void interpret_call_lwrite();
-
-        inline void interpret_call_llength();
-
-        inline void interpret_call_lstring();
-
-        inline void interpret_call_barray();
+        inline void push_error_diagnostic(std::string_view message) const {
+            diagnostics::push_error_diagnostic(message, ip);
+        }
+
+        inline size_t stack_size() { // NOLINT(*-convert-member-functions-to-static)
+            return __gc_stack_bottom - __gc_stack_top;
+        }
+
+        inline void init_stack() {
+            auto size = byte_file_.global_area_size + 2;
+            __gc_stack_top = stack_;
+            __gc_stack_bottom = stack_ + size;
+
+            // main frame
+            call_stack_[++fp] = Frame(
+                    Frame::ninit,
+                    uint32_t(stack_size()),
+                    0,
+                    2,
+                    false
+            );
+
+        }
+
+        inline void push(Value v) {
+#ifndef DISABLE_RUNTIME_CHECKS
+            if (stack_size() + 1 >= MAX_STACK_SIZE) {
+                push_error_diagnostic("Stack overflow");
+
+            }
+#endif
+
+            *(__gc_stack_bottom++) = v.as_repr();
+        }
+
+        Value pop() {
+#ifndef DISABLE_RUNTIME_CHECKS
+            if (stack_size() <= 0) {
+                push_error_diagnostic("No such element on stack to pop");
+            }
+#endif
+
+            return Value(*(--__gc_stack_bottom));
+        }
+
+        Value peek(uint32_t offset = 0) {
+#ifndef DISABLE_RUNTIME_CHECKS
+            if (stack_size() <= 0) {
+                push_error_diagnostic("No such element on stack to peek");
+            }
+#endif
+
+            return Value(stack_[stack_size() - 1 - offset]);
+        }
+
+        uint32_t read_uint() {
+#ifndef DISABLE_RUNTIME_CHECKS
+            if (ip + sizeof(uint32_t) > byte_file_.program_code.size()) {
+                push_error_diagnostic("Index out of bounds, while read constant from code");
+            }
+#endif
+
+            uint32_t res = 0;
+            std::memcpy(&res, byte_file_.program_code.data() + ip, sizeof(uint32_t));
+            ip += sizeof(uint32_t);
+
+            return res;
+        }
+
+        uint8_t read_uint8() {
+#ifndef DISABLE_RUNTIME_CHECKS
+            if (ip + sizeof(uint8_t) > byte_file_.program_code.size()) {
+                push_error_diagnostic("Index out of bounds, while read constant from code");
+            }
+#endif
+
+            return byte_file_.program_code.at(ip++);
+        }
+
+        Value get_local(int32_t address) {
+            auto &frame = call_stack_[fp];
+#ifndef DISABLE_RUNTIME_CHECKS
+            if (static_cast<uint32_t>(address) >= frame.get_locals_count()) {
+                push_error_diagnostic("Local index out of bounds");
+            }
+#endif
+            auto val = static_cast<auint>(stack_[frame.get_sp() + address]);
+            return Value(val);
+        }
+
+        Value get_arg(int32_t address) {
+            auto &frame = call_stack_[fp];
+
+            auto val = static_cast<auint>(stack_[frame.get_sp() - frame.get_args_count() + address]);
+            return Value(val);
+        }
+
+        Value get_capture(int32_t address) {
+            auto closure = get_arg(-1);
+#ifndef DISABLE_RUNTIME_CHECKS
+            if (!closure.is_closure()) {
+                push_error_diagnostic("Expected closure for capture access");
+            }
+#endif
+            auto closure_data = TO_DATA(closure.as_ptr());
+            auto captures = reinterpret_cast<auint *>(closure_data->contents);
+#ifndef DISABLE_RUNTIME_CHECKS
+            auto captures_count = LEN(closure.as_ptr()) - 1;
+            if (static_cast<uint32_t>(address) >= captures_count) {
+                push_error_diagnostic("Capture index out of bounds");
+            }
+#endif
+            return Value(captures[address + 1]);
+        }
+
+        Value get_local_address(int32_t address) {
+            auto &frame = call_stack_[fp];
+#ifndef DISABLE_RUNTIME_CHECKS
+            if (static_cast<uint32_t>(address) >= frame.get_locals_count()) {
+                push_error_diagnostic("Local index out of bounds");
+            }
+#endif
+            auto val = &stack_[frame.get_sp() + address];
+            return Value(val);
+        }
+
+        Value get_arg_address(int32_t address) {
+            auto &frame = call_stack_[fp];
+#ifndef DISABLE_RUNTIME_CHECKS
+            if (address >= frame.get_args_count()) {
+                push_error_diagnostic("Arg index out of bounds");
+            }
+#endif
+            auto val = &stack_[frame.get_sp() - frame.get_args_count() + address];
+            return Value(val);
+        }
+
+        Value get_capture_address(int32_t address) {
+            auto closure = get_arg(-1);
+#ifndef DISABLE_RUNTIME_CHECKS
+            if (!closure.is_closure()) {
+                push_error_diagnostic("Expected closure for capture address access");
+            }
+#endif
+            auto closure_data = TO_DATA(closure.as_ptr());
+            auto captures = reinterpret_cast<auint *>(closure_data->contents);
+#ifndef DISABLE_RUNTIME_CHECKS
+            auto captures_count = LEN(closure.as_ptr()) - 1;
+            if (static_cast<uint32_t>(address) >= captures_count) {
+                push_error_diagnostic("Capture index out of bounds");
+            }
+#endif
+            return Value(&captures[address + 1]);
+        }
+
+        inline void set_local(int32_t address, Value &value) {
+            auto &frame = call_stack_[fp];
+#ifndef DISABLE_RUNTIME_CHECKS
+            if (static_cast<uint32_t>(address) >= frame.get_locals_count()) {
+                push_error_diagnostic("Local index out of bounds");
+            }
+#endif
+            stack_[frame.get_sp() + address] = value.as_repr();
+        }
+
+        inline void set_arg(int32_t address, Value &value) {
+            auto &frame = call_stack_[fp];
+#ifndef DISABLE_RUNTIME_CHECKS
+            if (address >= frame.get_args_count()) {
+                push_error_diagnostic("Arg index out of bounds");
+            }
+#endif
+
+            stack_[frame.get_sp() - frame.get_args_count() + address] = value.as_repr();
+        }
+
+        inline void set_capture(int32_t address, Value &value) {
+            auto closure = get_arg(-1);
+#ifndef DISABLE_RUNTIME_CHECKS
+            if (!closure.is_closure()) {
+                push_error_diagnostic("Expected closure for capture address access");
+            }
+#endif
+            auto closure_data = TO_DATA(closure.as_ptr());
+#ifndef DISABLE_RUNTIME_CHECKS
+            auto captures_count = LEN(closure.as_ptr()) - 1;
+            if (static_cast<uint32_t>(address) >= captures_count) {
+                push_error_diagnostic("Capture index out of bounds");
+            }
+#endif
+            auto captures = reinterpret_cast<auint *>(closure_data->contents);
+            captures[address + 1] = value.as_repr();
+        }
+
+        inline void interpret_add() {
+            interpret_binop([](aint lhs, aint rhs) { return lhs + rhs; });
+        }
+
+        inline void interpret_sub() {
+            interpret_binop([](aint lhs, aint rhs) { return lhs - rhs; });
+        }
+
+        inline void interpret_mul() {
+            interpret_binop([](aint lhs, aint rhs) { return lhs * rhs; });
+        }
+
+        inline void interpret_div() {
+            interpret_binop(
+                    [](aint lhs, aint rhs) { return lhs / rhs; },
+#ifndef DISABLE_RUNTIME_CHECKS
+                    [this](aint, aint rhs) {
+                        if (rhs == 0) {
+                            push_error_diagnostic("Division by zero");
+                        }
+                    }
+#endif
+            );
+        }
+
+        inline void interpret_mod() {
+            interpret_binop(
+                    [](aint lhs, aint rhs) { return lhs % rhs; },
+#ifndef DISABLE_RUNTIME_CHECKS
+                    [this](aint, aint rhs) {
+                        if (rhs == 0) {
+                            push_error_diagnostic("Modulo by zero");
+                        }
+                    }
+#endif
+            );
+        }
+
+        inline void interpret_lt() {
+            interpret_binop([](aint lhs, aint rhs) -> aint { return lhs < rhs; });
+        }
+
+        inline void interpret_le() {
+            interpret_binop([](aint lhs, aint rhs) -> aint { return lhs <= rhs; });
+        }
+
+        inline void interpret_gt() {
+            interpret_binop([](aint lhs, aint rhs) -> aint { return lhs > rhs; });
+        }
+
+        inline void interpret_ge() {
+            interpret_binop([](aint lhs, aint rhs) -> aint { return lhs >= rhs; });
+        }
+
+        inline void interpret_eq() {
+            auto rhs = pop();
+            auto lhs = pop();
+
+#ifndef DISABLE_RUNTIME_CHECKS
+            if (!lhs.is_int() && !rhs.is_int()) {
+                push_error_diagnostic("One or more operands are not integers");
+            }
+#endif
+
+            aint res = 0;
+
+            if (lhs.is_int() && rhs.is_int()) {
+                res = lhs.as_int() == rhs.as_int();
+            }
+            push(Value(res));
+        }
+
+        inline void interpret_ne() {
+            interpret_binop([](aint lhs, aint rhs) -> aint { return lhs != rhs; });
+        }
+
+        inline void interpret_and() {
+            interpret_binop([](aint lhs, aint rhs) -> aint { return lhs && rhs; });
+        }
+
+        inline void interpret_or() {
+            interpret_binop([](aint lhs, aint rhs) -> aint { return lhs || rhs; });
+        }
+
+        inline void interpret_const() {
+            auto c = static_cast<aint>(read_uint());
+            push(Value(c));
+        }
+
+        inline void interpret_string() {
+            auto index = read_uint();
+
+#ifndef DISABLE_RUNTIME_CHECKS
+            if (index >= byte_file_.string_table_size) {
+                push_error_diagnostic("String index out of bounds");
+            }
+#endif
+
+            auto ptr = &byte_file_.string_table.get()[index];
+            auto str = Bstring(reinterpret_cast<aint *>(&ptr));
+            push(Value(str));
+        }
+
+        inline void interpret_s_exp() {
+            auto tag = read_uint();
+            auto size = read_uint();
+
+#ifndef DISABLE_RUNTIME_CHECKS
+            if (size > stack_size()) {
+                push_error_diagnostic("Not enough elements on stack to create s-expression");
+            }
+
+            if (tag >= byte_file_.string_table_size) {
+                push_error_diagnostic("String index out of bounds");
+            }
+#endif
+
+            auto ptr = &byte_file_.string_table.get()[tag];
+            auto tag_hash = LtagHash(ptr);
+
+            push(Value(auint(tag_hash)));
+            auto sp = __gc_stack_bottom - size - 1;
+            auto sexp = Bsexp(reinterpret_cast<aint *>(sp), BOX(size + 1));
+            __gc_stack_bottom = sp;
+
+            push(Value(sexp));
+        }
+
+        inline void interpret_sti() {
+            auto value = pop();
+            auto reference = pop();
+
+#ifndef DISABLE_RUNTIME_CHECKS
+            if (!reference.is_boxed()) {
+                push_error_diagnostic("Reference expected for sti");
+            }
+#endif
+
+            auto ptr = reinterpret_cast<auint *>(reference.as_ptr());
+            *ptr = value.as_repr();
+            push(value);
+        }
+
+        inline void interpret_sta() {
+            Value val = pop();
+            Value index = pop();
+
+            if (index.is_int()) {
+                Value x = pop();
+                auto i = index.as_int();
+
+#ifndef DISABLE_RUNTIME_CHECKS
+                if (!x.is_arr() && !x.is_str() && !x.is_s_expr()) {
+                    push_error_diagnostic("Try to store not in array, string, or sexp");
+                }
+
+                if (x.size() <= i || i < 0) {
+                    push_error_diagnostic("Index out of bounds");
+                }
+#endif
+
+                Bsta(x.as_ptr(), aint(index.as_repr()), val.as_ptr());
+            } else {
+
+#ifndef DISABLE_RUNTIME_CHECKS
+                if (!index.is_boxed()) {
+                    push_error_diagnostic("Reference expected for sti");
+                }
+#endif
+                auto ptr = reinterpret_cast<auint *>(index.as_ptr());
+                *ptr = val.as_repr();
+            }
+
+            push(val);
+        }
+
+        inline void interpret_jmp() {
+            auto location = read_uint();
+
+#ifndef DISABLE_RUNTIME_CHECKS
+            if (byte_file_.program_code.size() <= location) {
+                push_error_diagnostic("Jump out of bounds");
+            }
+#endif
+
+            ip = location;
+        }
+
+        inline void interpret_end() {
+            auto value = pop();
+            auto &frame = call_stack_[fp];
+
+            auto next_sp = frame.is_closure()
+                           ? frame.get_sp() - frame.get_args_count() - 1
+                           : frame.get_sp() - frame.get_args_count();
+
+            __gc_stack_bottom = __gc_stack_top + next_sp;
+
+            auto prev_ip = frame.get_return_address();
+            ip = prev_ip;
+
+            fp--;
+
+            push(value);
+        }
+
+        inline void interpret_drop() {
+            pop();
+        }
+
+        inline void interpret_dup() {
+            auto value = peek();
+            push(value);
+        }
+
+        inline void interpret_swap() {
+            auto a = pop();
+            auto b = pop();
+
+            push(b);
+            push(a);
+        }
+
+        inline void interpret_elem() {
+            auto index = pop();
+
+#ifndef DISABLE_RUNTIME_CHECKS
+            if (!index.is_int()) {
+                push_error_diagnostic("Index must be an integer");
+            }
+#endif
+
+            auto x = pop();
+
+#ifndef DISABLE_RUNTIME_CHECKS
+            if (!x.is_arr() && !x.is_str() && !x.is_s_expr()) {
+                push_error_diagnostic("Try to get element not from array, string, or sexp");
+            }
+#endif
+
+            auto value = Belem(x.as_ptr(), aint(index.as_repr()));
+
+            push(Value(value));
+        }
+
+        inline void interpret_ld_g() {
+            interpret_load("Global index out of stack bounds", [this](uint32_t address) {
+                return Value(stack_[address]);
+            });
+        }
+
+        inline void interpret_ld_l() {
+            interpret_load("Local index out of stack bounds", [this](uint32_t address) {
+                return get_local(static_cast<int32_t>(address));
+            });
+        }
+
+        inline void interpret_ld_a() {
+            interpret_load("Arg index out of stack bounds", [this](uint32_t address) {
+                return get_arg(static_cast<int32_t>(address));
+            });
+        }
+
+        inline void interpret_ld_c() {
+            interpret_load("Capture index out of stack bounds", [this](uint32_t address) {
+                return get_capture(static_cast<int32_t>(address));
+            });
+        }
+
+        inline void interpret_lda_g() {
+            interpret_load_address("Global index out of bounds", [this](uint32_t address) {
+                return Value(&stack_[address]);
+            });
+        }
+
+        inline void interpret_lda_l() {
+            interpret_load_address("Local index out of stack bounds", [this](uint32_t address) {
+                return get_local_address(static_cast<int32_t>(address));
+            });
+        }
+
+        inline void interpret_lda_a() {
+            interpret_load_address("Arg index out of stack bounds", [this](uint32_t address) {
+                return get_arg_address(static_cast<int32_t>(address));
+            });
+        }
+
+        inline void interpret_lda_c() {
+            interpret_load_address("Capture index out of stack bounds", [this](uint32_t address) {
+                return get_capture_address(static_cast<int32_t>(address));
+            });
+        }
+
+        inline void interpret_st_g() {
+            interpret_store("Global index out of stack bounds", [this](uint32_t address, Value &value) {
+                stack_[address] = value.as_repr();
+            });
+        }
+
+        inline void interpret_st_l() {
+            interpret_store("Local index out of stack bounds", [this](uint32_t address, Value &value) {
+                set_local(static_cast<int32_t>(address), value);
+            });
+        }
+
+        inline void interpret_st_a() {
+            interpret_store("Arg index out of stack bounds", [this](uint32_t address, Value &value) {
+                set_arg(static_cast<int32_t>(address), value);
+            });
+        }
+
+        inline void interpret_st_c() {
+            interpret_store("Capture index out of stack bounds", [this](uint32_t address, Value &value) {
+                set_capture(static_cast<int32_t>(address), value);
+            });
+        }
+
+        inline void interpret_conditional_jump(bool jump_on_true) {
+            auto location = read_uint();
+
+#ifndef DISABLE_RUNTIME_CHECKS
+            if (byte_file_.program_code.size() <= location) {
+                push_error_diagnostic("Jump out of bounds");
+            }
+#endif
+
+            Value condition = pop();
+
+#ifndef DISABLE_RUNTIME_CHECKS
+            if (!condition.is_int()) {
+                push_error_diagnostic("Condition should be integer");
+            }
+#endif
+
+            if ((condition.as_int() != 0) == jump_on_true) {
+                ip = location;
+            }
+        }
+
+        inline void interpret_cjmpz() {
+            interpret_conditional_jump(false);
+        }
+
+        inline void interpret_cjmpnz() {
+            interpret_conditional_jump(true);
+        }
+
+        inline void interpret_begin() {
+            auto args_count = read_uint();
+            auto locals_count = read_uint();
+
+            auto &frame = call_stack_[fp];
+
+#ifndef DISABLE_RUNTIME_CHECKS
+            if (args_count != frame.get_args_count()) {
+                push_error_diagnostic("Incorrect arguments count");
+            }
+
+            frame.set_locals_count(locals_count);
+#endif
+
+            for (uint32_t i = 0; i < locals_count; i++) {
+                push(Value(auint(0)));
+            }
+        }
+
+        inline void interpret_cbegin() {
+            auto args_count = read_uint();
+            auto locals_count = read_uint();
+
+            auto &frame = call_stack_[fp];
+
+#ifndef DISABLE_RUNTIME_CHECKS
+            if (args_count != frame.get_args_count()) {
+                push_error_diagnostic("Incorrect arguments count");
+            }
+
+            frame.set_locals_count(locals_count);
+#endif
+
+            for (uint32_t i = 0; i < locals_count; i++) {
+                push(Value(auint(0)));
+            }
+        }
+
+        inline void interpret_closure() {
+            auto address = read_uint();
+
+#ifndef DISABLE_RUNTIME_CHECKS
+            if (byte_file_.program_code.size() <= address) {
+                push_error_diagnostic("Closure address out of bounds");
+            }
+#endif
+
+            auto count = read_uint();
+
+            auto sp = __gc_stack_bottom;
+            push(Value(auint(address)));
+
+            for (int i = 0; i < count; i++) {
+                auto type = static_cast<ClosureArgType>(read_uint8());
+
+                auto arg_address = int32_t(read_uint());
+
+                switch (type) {
+                    case Global:
+                        push(Value(auint(stack_[arg_address])));
+                        break;
+                    case Local:
+                        push(Value(auint(get_local(arg_address).as_repr())));
+                        break;
+                    case Arg:
+                        push(Value(auint(get_arg(arg_address).as_repr())));
+                        break;
+                    case Capture:
+                        push(Value(auint(get_capture(arg_address).as_repr())));
+                        break;
+                }
+            }
+
+            auto closure = Bclosure(reinterpret_cast<aint *>(sp), BOX(count));
+            __gc_stack_bottom = sp;
+            push(Value(closure));
+        }
+
+        inline void interpret_callc() {
+            auto args_count = read_uint();
+
+            auto closure = peek(args_count);
+#ifndef DISABLE_RUNTIME_CHECKS
+            if (!closure.is_closure()) {
+                push_error_diagnostic("Target code isn't closure");
+            }
+#endif
+            auto closure_data = TO_DATA(closure.as_ptr());
+            auto captured = reinterpret_cast<auint *>(closure_data->contents);
+
+            auto closure_address = static_cast<int32_t>(captured[0]);
+
+#ifndef DISABLE_RUNTIME_CHECKS
+            if (byte_file_.program_code.size() <= closure_address) {
+                push_error_diagnostic("Closure address out of bounds");
+            }
+
+            auto instr = byte_file_.program_code.at(closure_address);
+            if (instr != BEGIN && instr != CBEGIN) {
+                push_error_diagnostic("Closure entry must be begin or cbegin");
+            }
+
+            if (fp + 1 >= MAX_CALL_STACK_SIZE) {
+                push_error_diagnostic("Call stack overflow");
+            }
+#endif
+
+
+            call_stack_[++fp] = Frame(
+                    ip,
+                    uint32_t(stack_size()),
+                    closure_address,
+                    args_count,
+                    true
+            );
+
+            ip = closure_address;
+        }
+
+        inline void interpret_call() {
+            auto proc_address = read_uint();
+
+            if (proc_address == 0x00000075) {
+                proc_address *= 1;
+            }
+
+#ifndef DISABLE_RUNTIME_CHECKS
+            if (byte_file_.program_code.size() <= proc_address) {
+                push_error_diagnostic("Closure address out of bounds");
+            }
+
+            auto instr = byte_file_.program_code.at(proc_address);
+            if (instr != BEGIN && instr != CBEGIN) {
+                push_error_diagnostic("Procedure entry must be begin or cbegin");
+            }
+
+            if (fp + 1 >= MAX_CALL_STACK_SIZE) {
+                push_error_diagnostic("Call stack overflow");
+            }
+#endif
+
+            auto args_count = read_uint();
+
+            call_stack_[++fp] = Frame(
+                    ip,
+                    uint32_t(stack_size()),
+                    proc_address,
+                    args_count,
+                    false
+            );
+
+            ip = proc_address;
+        }
+
+        inline void interpret_tag() {
+            auto tag = read_uint();
+            auto size = read_uint();
+
+#ifndef DISABLE_RUNTIME_CHECKS
+            if (tag >= byte_file_.string_table_size) {
+                push_error_diagnostic("String index out of bounds");
+            }
+#endif
+
+            auto probe = pop();
+            if (!probe.is_s_expr()) {
+                push(Value(aint(0)));
+                return;
+            }
+
+            auto ptr = &byte_file_.string_table.get()[tag];
+            auto tag_hash = LtagHash(ptr);
+            auto result = Btag(probe.as_ptr(), tag_hash, BOX(size));
+
+            push(Value(static_cast<auint>(result)));
+        }
+
+        inline void interpret_array() {
+            auto n = read_uint();
+
+            auto value = pop();
+            auto result = Barray_patt(value.as_ptr(), BOX(n));
+            push(Value(static_cast<auint>(result)));
+        }
+
+        inline void interpret_fail() {
+            auto line = read_uint();
+            auto column = read_uint();
+            auto value = pop();
+
+            Bmatch_failure(value.as_ptr(), &byte_file_.file_name[0], line, column);
+        }
+
+        inline void interpret_line() {
+            auto line = read_uint();
+            auto &frame = call_stack_[fp];
+            frame.set_line(line);
+        }
+
+        inline void interpret_patteqstr() {
+            auto b = pop();
+            auto a = pop();
+            auto result = Bstring_patt(a.as_ptr(), b.as_ptr());
+
+            push(Value(static_cast<auint>(result)));
+        }
+
+        inline void interpret_pattstring() {
+            auto value = pop();
+            auto result = Bstring_tag_patt(value.as_ptr());
+
+            push(Value(static_cast<auint>(result)));
+        }
+
+        inline void interpret_pattarray() {
+            auto value = pop();
+            auto result = Barray_tag_patt(value.as_ptr());
+
+            push(Value(static_cast<auint>(result)));
+        }
+
+        inline void interpret_pattsexp() {
+            auto value = pop();
+            auto result = Bsexp_tag_patt(value.as_ptr());
+
+            push(Value(static_cast<auint>(result)));
+        }
+
+        inline void interpret_pattref() {
+            auto value = pop();
+            auto result = Bboxed_patt(value.as_ptr());
+
+            push(Value(static_cast<auint>(result)));
+        }
+
+        inline void interpret_pattval() {
+            auto value = pop();
+            auto result = Bunboxed_patt(value.as_ptr());
+
+            push(Value(static_cast<auint>(result)));
+        }
+
+        inline void interpret_pattfun() {
+            auto value = pop();
+            auto result = Bclosure_tag_patt(value.as_ptr());
+
+            push(Value(static_cast<auint>(result)));
+        }
+
+        inline void interpret_call_lread() {
+            auto value = Lread();
+            push(Value(static_cast<auint>(value)));
+        }
+
+        inline void interpret_call_lwrite() {
+            auto value = pop();
+
+#ifndef DISABLE_RUNTIME_CHECKS
+            if (!value.is_int()) {
+                push_error_diagnostic("Only integer write supported");
+            }
+#endif
+
+            auto result = Lwrite(static_cast<aint>(value.as_repr()));
+
+            push(Value(static_cast<auint>(result)));
+        }
+
+        inline void interpret_call_llength() {
+            auto x = pop();
+
+#ifndef DISABLE_RUNTIME_CHECKS
+            if (!x.is_arr() && !x.is_str() && !x.is_s_expr()) {
+                push_error_diagnostic("Try to get length not in array, string, or sexp");
+            }
+#endif
+
+            auto len = Llength(x.as_ptr());
+            push(Value(static_cast<auint>(len)));
+        }
+
+        inline void interpret_call_lstring() {
+            auto value = pop();
+            void *ptr = value.as_ptr();
+            auto str = Lstring(reinterpret_cast<aint *>(&ptr));
+            push(Value(str));
+        }
+
+        inline void interpret_call_barray() {
+            auto len = read_uint();
+#ifndef DISABLE_RUNTIME_CHECKS
+            if (len > stack_size()) {
+                push_error_diagnostic("Not enough elements on stack for array creation");
+            }
+#endif
+
+            auto sp = __gc_stack_bottom - len;
+            void *v = Barray(reinterpret_cast<aint *>(sp), BOX(len));
+            __gc_stack_bottom = sp;
+            push(Value(v));
+        }
 
 
         template<typename Operation, typename ExtraCheck>
@@ -255,6 +949,7 @@ namespace lamar {
         Frame call_stack_[MAX_CALL_STACK_SIZE]{};
         ByteFile byte_file_;
     };
+
 }
 
 

@@ -12,7 +12,7 @@ void lamar::Interpreter::interpret() {
     __init();
     init_stack();
 
-    std::vector<OpCode> &code = byte_file_.program_code;
+    auto &code = byte_file_.program_code;
     while (ip < code.size()) {
         auto instr = code.at(ip++);
 
@@ -207,7 +207,7 @@ void lamar::Interpreter::interpret() {
 }
 
 
-void lamar::Interpreter::push_error_diagnostic(std::string_view message) {
+void lamar::Interpreter::push_error_diagnostic(std::string_view message) const {
     diagnostics::push_error_diagnostic(message, ip);
 }
 
@@ -514,11 +514,11 @@ void lamar::Interpreter::interpret_s_exp() {
     auto size = read_uint();
 
 #ifndef DISABLE_RUNTIME_CHECKS
-    if (size < 0) {
+    if (size >= MAX_ARGS_IN_SEXP) {
         push_error_diagnostic("Wrong size of s-expression");
     }
 
-    if (tag < 0 || tag >= byte_file_.string_table_size) {
+    if (tag >= byte_file_.string_table_size) {
         push_error_diagnostic("String index out of bounds");
     }
 #endif
@@ -526,15 +526,14 @@ void lamar::Interpreter::interpret_s_exp() {
     auto ptr = &byte_file_.string_table.get()[tag];
     auto tag_hash = LtagHash(ptr);
 
-    std::vector<aint> args;
-    args.resize(size + 1);
+    aint args[MAX_ARGS_IN_SEXP];
     for (int i = static_cast<int>(size - 1); i >= 0; --i) {
         auto arg = pop();
         args[i] = static_cast<aint>(arg.as_repr());
     }
 
     args[size] = tag_hash;
-    auto sexp = Bsexp(args.data(), BOX(size + 1));
+    auto sexp = Bsexp(args, BOX(size + 1));
     push(Value(sexp));
 }
 
@@ -897,16 +896,21 @@ inline void lamar::Interpreter::interpret_closure() {
     auto address = read_uint();
 
 #ifndef DISABLE_RUNTIME_CHECKS
-    if (byte_file_.program_code.size() <= address || address < 0) {
+    if (byte_file_.program_code.size() <= address) {
         push_error_diagnostic("Closure address out of bounds");
     }
 #endif
 
     auto count = read_uint();
 
+#ifndef DISABLE_RUNTIME_CHECKS
+    if (count >= MAX_ARGS_IN_CLOSURE) {
+        push_error_diagnostic("Closure have to many arguments");
+    }
+#endif
 
-    std::vector<aint> args;
-    args.resize(count + 1);
+
+    aint args[MAX_ARGS_IN_CLOSURE];
     args[0] = static_cast<aint>(address);
     decltype(auto) frame = call_stack_.back();
 
@@ -932,7 +936,7 @@ inline void lamar::Interpreter::interpret_closure() {
     }
 
     // todo dirty place
-    auto closure = Bclosure(args.data(), BOX(count + 1));
+    auto closure = Bclosure(args, BOX(count + 1));
     push(Value(closure));
 }
 
@@ -979,8 +983,6 @@ inline void lamar::Interpreter::interpret_call() {
 
     auto args_count = read_uint();
 
-    // todo check begin
-
     decltype(auto) frame = call_stack_.emplace_back(
             ip,
             uint32_t(stack_size()),
@@ -989,6 +991,7 @@ inline void lamar::Interpreter::interpret_call() {
             false
     );
 
+    // todo check begin
     ip = proc_address;
 }
 
@@ -1134,19 +1137,18 @@ inline void lamar::Interpreter::interpret_call_lstring() {
 inline void lamar::Interpreter::interpret_call_barray() {
     auto len = read_uint();
 #ifndef DISABLE_RUNTIME_CHECKS
-    if (len < 0) {
-        push_error_diagnostic("Try allocate zero or negative length array");
+    if (len >= MAX_ARS_IN_ARRAY) {
+        push_error_diagnostic("Try allocate very big array");
     }
 #endif
 
-    std::vector<aint> args;
-    args.resize(len);
+    aint args[MAX_ARS_IN_ARRAY];
     for (int i = static_cast<int>(len - 1); i >= 0; --i) {
         auto arg = pop();
         args[i] = static_cast<aint>(arg.as_repr());
     }
 
-    void *v = Barray(args.data(), BOX(len));
+    void *v = Barray(args, BOX(len));
     push(Value(v));
 }
 

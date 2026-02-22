@@ -13,6 +13,9 @@
 #include "value.hpp"
 #include "frame.hpp"
 
+#define MAX_ARGS_IN_SEXP 255
+#define MAX_ARGS_IN_CLOSURE 255
+#define MAX_ARS_IN_ARRAY 255
 #define FRAME_STACK_GROWTH 3
 #define NEW_FRAME_STEP 40
 #define ZERO BOX(0)
@@ -27,7 +30,7 @@ namespace lamar {
 
     private:
 
-        inline void push_error_diagnostic(std::string_view message);
+        inline void push_error_diagnostic(std::string_view message) const;
 
         inline void init_stack();
 

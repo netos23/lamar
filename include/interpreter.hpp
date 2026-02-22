@@ -13,8 +13,8 @@
 #include "value.hpp"
 #include "frame.hpp"
 
-#define MAX_STACK_SIZE 8196
-#define MAX_CALL_STACK_SIZE 8196
+#define MAX_STACK_SIZE (1 << 17)
+#define MAX_CALL_STACK_SIZE (1 << 17)
 
 namespace lamar {
 

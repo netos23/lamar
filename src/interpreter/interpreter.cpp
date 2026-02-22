@@ -4,6 +4,7 @@
 
 #include "interpreter.hpp"
 #include "diagnostics.hpp"
+#include <iostream>
 
 
 lamar::Interpreter::Interpreter(lamar::ByteFile &&byteFile) : byte_file_(std::move(byteFile)) {}
@@ -754,6 +755,11 @@ inline void lamar::Interpreter::interpret_callc() {
 
 inline void lamar::Interpreter::interpret_call() {
     auto proc_address = read_uint();
+
+    if(proc_address == 0x00000075){
+        proc_address *=1;
+    }
+
 #ifndef DISABLE_RUNTIME_CHECKS
     if (byte_file_.program_code.size() <= proc_address) {
         push_error_diagnostic("Closure address out of bounds");

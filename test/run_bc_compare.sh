@@ -9,8 +9,8 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 BC_DIR="${BC_DIR:-${ROOT_DIR}/regression}"
-BYTERUN_BIN="${BYTERUN_BIN:-${ROOT_DIR}/cmake-build-debug/third_party/Lama/byterun/byterun}"
-LAMAR_BIN="${LAMAR_BIN:-${ROOT_DIR}/cmake-build-debug/lamar}"
+BYTERUN_BIN="${BYTERUN_BIN:-${ROOT_DIR}/cmake-build-release/third_party/Lama/byterun/byterun}"
+LAMAR_BIN="${LAMAR_BIN:-${ROOT_DIR}/cmake-build-release/lamar}"
 
 if [[ ! -x "${BYTERUN_BIN}" ]]; then
   echo "::error file=${BYTERUN_BIN}::byterun executable not found or not executable" >&2

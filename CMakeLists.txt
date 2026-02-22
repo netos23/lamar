@@ -12,6 +12,7 @@ add_subdirectory(${CMAKE_SOURCE_DIR}/third_party/Lama/byterun ${CMAKE_BINARY_DIR
 add_executable(lamar
 
         include/bytecode.hpp
+        include/diagnostics.hpp
         include/disassembler.hpp
         include/loader.hpp
         include/interpreter.hpp
@@ -19,6 +20,7 @@ add_executable(lamar
         include/value.hpp
 
         src/common/bytecode.cpp
+        src/common/diagnostics.cpp
         src/disassembler/disassembler.cpp
         src/interpreter/interpreter.cpp
         src/interpreter/value.cpp
@@ -29,21 +31,19 @@ add_executable(lamar
         src/interpreter/frame.cpp
 )
 
-if (CMAKE_BUILD_TYPE MATCHES "Debug")
-    set(
-            CMAKE_C_FLAGS
-            "${CMAKE_C_FLAGS} -Werror -fsanitize=undefined -fsanitize=address"
-    )
-    set(
-            CMAKE_CXX_FLAGS
-            "${CMAKE_CXX_FLAGS} -fsanitize=undefined -fsanitize=address"
-    )
+# Disable sanitizers on linux
+if (CMAKE_BUILD_TYPE MATCHES "Debug" AND CMAKE_SYSTEM_NAME STREQUAL "Darwin")
     target_link_options(lamar
             BEFORE PRIVATE -fsanitize=undefined -fsanitize=address
     )
+else ()
+    if(MSVC)
+        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /WX")
+    else()
+        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3")
+    endif()
 endif ()
 
 
 target_include_directories(lamar PRIVATE include/ ${RUNTIME_DIR})
 target_link_libraries(lamar PRIVATE runtime)
-

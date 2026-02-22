@@ -4,6 +4,7 @@
 
 #include "interpreter.hpp"
 #include "diagnostics.hpp"
+#include <iostream>
 
 
 lamar::Interpreter::Interpreter(lamar::ByteFile &&byteFile) : byte_file_(std::move(byteFile)) {}
@@ -75,8 +76,6 @@ void lamar::Interpreter::interpret() {
                 interpret_jmp();
                 break;
             case END:
-                interpret_end();
-                break;
             case RET:
                 interpret_end();
                 break;
@@ -211,7 +210,7 @@ void lamar::Interpreter::push_error_diagnostic(std::string_view message) const {
     diagnostics::push_error_diagnostic(message, ip);
 }
 
-size_t lamar::Interpreter::stack_size() {
+size_t lamar::Interpreter::stack_size() { // NOLINT(*-convert-member-functions-to-static)
     return __gc_stack_bottom - __gc_stack_top;
 }
 
@@ -394,8 +393,8 @@ void lamar::Interpreter::interpret_s_exp() {
     auto size = read_uint();
 
 #ifndef DISABLE_RUNTIME_CHECKS
-    if (size >= MAX_ARGS_IN_SEXP) {
-        push_error_diagnostic("Wrong size of s-expression");
+    if (size > stack_size()) {
+        push_error_diagnostic("Not enough elements on stack to create s-expression");
     }
 
     if (tag >= byte_file_.string_table_size) {
@@ -406,14 +405,11 @@ void lamar::Interpreter::interpret_s_exp() {
     auto ptr = &byte_file_.string_table.get()[tag];
     auto tag_hash = LtagHash(ptr);
 
-    aint args[MAX_ARGS_IN_SEXP];
-    for (int i = static_cast<int>(size - 1); i >= 0; --i) {
-        auto arg = pop();
-        args[i] = static_cast<aint>(arg.as_repr());
-    }
+    push(Value(auint(tag_hash)));
+    auto sp = __gc_stack_bottom - size - 1;
+    auto sexp = Bsexp(reinterpret_cast<aint *>(sp), BOX(size + 1));
+    __gc_stack_bottom = sp;
 
-    args[size] = tag_hash;
-    auto sexp = Bsexp(args, BOX(size + 1));
     push(Value(sexp));
 }
 
@@ -450,7 +446,7 @@ void lamar::Interpreter::interpret_sta() {
         }
 #endif
 
-        Bsta(x.as_ptr(), index.as_repr(), val.as_ptr());
+        Bsta(x.as_ptr(), aint(index.as_repr()), val.as_ptr());
     } else {
 
 #ifndef DISABLE_RUNTIME_CHECKS
@@ -531,7 +527,7 @@ inline void lamar::Interpreter::interpret_elem() {
     }
 #endif
 
-    auto value = Belem(x.as_ptr(), index.as_repr());
+    auto value = Belem(x.as_ptr(), aint(index.as_repr()));
 
     push(Value(value));
 }
@@ -687,39 +683,32 @@ inline void lamar::Interpreter::interpret_closure() {
 
     auto count = read_uint();
 
-#ifndef DISABLE_RUNTIME_CHECKS
-    if (count >= MAX_ARGS_IN_CLOSURE) {
-        push_error_diagnostic("Closure have to many arguments");
-    }
-#endif
-
-
-    aint args[MAX_ARGS_IN_CLOSURE];
-    args[0] = static_cast<aint>(address);
-    auto &frame = call_stack_[fp];
+    auto sp = __gc_stack_bottom;
+    push(Value(auint(address)));
 
     for (int i = 0; i < count; i++) {
         auto type = static_cast<ClosureArgType>(read_uint8());
 
-        auto arg_address = read_uint();
+        auto arg_address = int32_t(read_uint());
 
         switch (type) {
             case Global:
-                args[i + 1] = static_cast<aint>(stack_[arg_address]);
+                push(Value(auint(stack_[arg_address])));
                 break;
             case Local:
-                args[i + 1] = static_cast<aint>(get_local(arg_address).as_repr());
+                push(Value(auint(get_local(arg_address).as_repr())));
                 break;
             case Arg:
-                args[i + 1] = static_cast<aint>(get_arg(arg_address).as_repr());
+                push(Value(auint(get_arg(arg_address).as_repr())));
                 break;
             case Capture:
-                args[i + 1] = static_cast<aint>(get_capture(arg_address).as_repr());
+                push(Value(auint(get_capture(arg_address).as_repr())));
                 break;
         }
     }
 
-    auto closure = Bclosure(args, BOX(count));
+    auto closure = Bclosure(reinterpret_cast<aint *>(sp), BOX(count));
+    __gc_stack_bottom = sp;
     push(Value(closure));
 }
 
@@ -766,6 +755,11 @@ inline void lamar::Interpreter::interpret_callc() {
 
 inline void lamar::Interpreter::interpret_call() {
     auto proc_address = read_uint();
+
+    if(proc_address == 0x00000075){
+        proc_address *=1;
+    }
+
 #ifndef DISABLE_RUNTIME_CHECKS
     if (byte_file_.program_code.size() <= proc_address) {
         push_error_diagnostic("Closure address out of bounds");
@@ -931,18 +925,14 @@ inline void lamar::Interpreter::interpret_call_lstring() {
 inline void lamar::Interpreter::interpret_call_barray() {
     auto len = read_uint();
 #ifndef DISABLE_RUNTIME_CHECKS
-    if (len >= MAX_ARS_IN_ARRAY) {
-        push_error_diagnostic("Try allocate very big array");
+    if (len > stack_size()) {
+        push_error_diagnostic("Not enough elements on stack for array creation");
     }
 #endif
 
-    aint args[MAX_ARS_IN_ARRAY];
-    for (int i = static_cast<int>(len - 1); i >= 0; --i) {
-        auto arg = pop();
-        args[i] = static_cast<aint>(arg.as_repr());
-    }
-
-    void *v = Barray(args, BOX(len));
+    auto sp = __gc_stack_bottom - len;
+    void *v = Barray(reinterpret_cast<aint *>(sp), BOX(len));
+    __gc_stack_bottom = sp;
     push(Value(v));
 }
 

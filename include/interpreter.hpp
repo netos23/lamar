@@ -13,11 +13,8 @@
 #include "value.hpp"
 #include "frame.hpp"
 
-#define MAX_ARGS_IN_SEXP 255
-#define MAX_ARGS_IN_CLOSURE 255
-#define MAX_ARS_IN_ARRAY 255
-#define MAX_STACK_SIZE 8196
-#define MAX_CALL_STACK_SIZE 8196
+#define MAX_STACK_SIZE (1 << 17)
+#define MAX_CALL_STACK_SIZE (1 << 17)
 
 namespace lamar {
 
@@ -39,7 +36,7 @@ namespace lamar {
 
         inline Value peek(uint32_t offset = 0);
 
-        size_t stack_size();
+        static size_t stack_size();
 
         inline uint32_t read_uint();
 

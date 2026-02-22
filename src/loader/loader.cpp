@@ -3,6 +3,8 @@
 //
 
 #include "loader.hpp"
+#include "diagnostics.hpp"
+#include <ios>
 
 
 int32_t lamar::Loader::read_int32_t() {
@@ -15,10 +17,14 @@ int32_t lamar::Loader::read_int32_t() {
 }
 
 void lamar::Loader::read_bytes(char *buf, std::streamsize size) {
+    auto offset = input_stream_.tellg();
     input_stream_.read(buf, size);
 
-    if (input_stream_.gcount() < size) {
-        throw std::range_error("Malformed bytefile");
+    if (input_stream_.fail() || input_stream_.gcount() < size) {
+        diagnostics::push_error_diagnostic(
+                "Malformed bytefile",
+                offset == std::streampos(-1) ? 0U : static_cast<uint32_t>(offset)
+        );
     }
 }
 
@@ -56,19 +62,41 @@ lamar::ByteFile lamar::Loader::read_byte_file() {
 
 std::vector<lamar::OpCode> lamar::Loader::read_bytecode() {
     auto pos = input_stream_.tellg();
+    if (pos == std::streampos(-1)) {
+        diagnostics::push_error_diagnostic("Failed to determine bytecode start offset", 0);
+        return {};
+    }
     input_stream_.seekg(0, std::ios_base::end);
+    if (input_stream_.fail()) {
+        diagnostics::push_error_diagnostic("Failed to seek to end of bytefile", static_cast<uint32_t>(pos));
+        return {};
+    }
     auto end = input_stream_.tellg();
+    if (end == std::streampos(-1)) {
+        diagnostics::push_error_diagnostic("Failed to determine bytecode end offset", static_cast<uint32_t>(pos));
+        return {};
+    }
     auto len = end - pos + 1;
+    if (len <= 0) {
+        diagnostics::push_error_diagnostic("Malformed bytefile length", static_cast<uint32_t>(pos));
+        return {};
+    }
     input_stream_.seekg(pos);
+    if (input_stream_.fail()) {
+        diagnostics::push_error_diagnostic("Failed to restore stream position", static_cast<uint32_t>(pos));
+        return {};
+    }
 
     std::vector<lamar::OpCode> res;
-    res.resize(len);
+    res.resize(static_cast<size_t>(len));
 
     input_stream_.read(reinterpret_cast<char *>(res.data()), len);
+    if (input_stream_.fail() || input_stream_.gcount() < len) {
+        diagnostics::push_error_diagnostic("Malformed bytefile", static_cast<uint32_t>(pos));
+    }
 
     return res;
 }
 
 lamar::Loader::Loader(std::istream &inputStream, std::string file_name) : input_stream_(inputStream),
                                                                           file_name_(std::move(file_name)) {}
- 

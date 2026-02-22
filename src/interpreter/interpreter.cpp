@@ -3,6 +3,7 @@
 //
 
 #include "interpreter.hpp"
+#include "diagnostics.hpp"
 
 
 lamar::Interpreter::Interpreter(lamar::ByteFile &&byteFile) : byte_file_(std::move(byteFile)) {}
@@ -207,10 +208,7 @@ void lamar::Interpreter::interpret() {
 
 
 void lamar::Interpreter::push_error_diagnostic(std::string_view message) {
-    std::string formated_message = std::string(message) + "At: %#08X\n";
-
-    char *formated_message_data = const_cast<char *>(formated_message.c_str());
-    failure(formated_message_data, ip);
+    diagnostics::push_error_diagnostic(message, ip);
 }
 
 size_t lamar::Interpreter::stack_size() {

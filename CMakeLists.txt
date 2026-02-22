@@ -18,6 +18,7 @@ endif()
 add_executable(lamar
 
         include/bytecode.hpp
+        include/diagnostics.hpp
         include/disassembler.hpp
         include/loader.hpp
         include/interpreter.hpp
@@ -25,6 +26,7 @@ add_executable(lamar
         include/value.hpp
 
         src/common/bytecode.cpp
+        src/common/diagnostics.cpp
         src/disassembler/disassembler.cpp
         src/interpreter/interpreter.cpp
         src/interpreter/value.cpp
@@ -45,4 +47,3 @@ endif ()
 
 target_include_directories(lamar PRIVATE include/ ${RUNTIME_DIR})
 target_link_libraries(lamar PRIVATE runtime)
-

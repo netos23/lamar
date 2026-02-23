@@ -59,7 +59,7 @@ jobs:
 #      - name: Run bytecode disassembly tests
 #        env:
 #          BYTERUN_BIN: ${{ github.workspace }}/cmake-build-release/third_party/Lama/byterun/byterun
-#          LAMAR_BIN: ${{ github.workspace }}/cmake-build-release/lamar
+#          LAMAR_DISASSEMBLER_BIN: ${{ github.workspace }}/cmake-build-release/lamar_disassembler
 #        run: ./test/run_bc_compare.sh
 #      - name: Run analyzer performance tests
 #        env:

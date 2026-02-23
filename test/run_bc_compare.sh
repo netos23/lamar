@@ -1,24 +1,24 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Compare byterun and lamar outputs for all .bc files.
+# Compare byterun and lamar_disassembler outputs for all .bc files.
 # Environment overrides:
 #   BC_DIR       - directory to scan for *.bc (default: <repo>/regression)
 #   BYTERUN_BIN  - path to byterun executable
-#   LAMAR_BIN    - path to lamar executable
+#   LAMAR_DISASSEMBLER_BIN    - path to lamar_disassembler executable
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 BC_DIR="${BC_DIR:-${ROOT_DIR}/regression}"
-BYTERUN_BIN="${BYTERUN_BIN:-${ROOT_DIR}/cmake-build-release/third_party/Lama/byterun/byterun}"
-LAMAR_BIN="${LAMAR_BIN:-${ROOT_DIR}/cmake-build-release/lamar}"
+BYTERUN_BIN="${BYTERUN_BIN:-${ROOT_DIR}/cmake-build-debug/third_party/Lama/byterun/byterun}"
+LAMAR_DISASSEMBLER_BIN="${LAMAR_DISASSEMBLER_BIN:-${ROOT_DIR}/cmake-build-debug/lamar_disassembler}"
 
 if [[ ! -x "${BYTERUN_BIN}" ]]; then
   echo "::error file=${BYTERUN_BIN}::byterun executable not found or not executable" >&2
   exit 1
 fi
 
-if [[ ! -x "${LAMAR_BIN}" ]]; then
-  echo "::error file=${LAMAR_BIN}::lamar executable not found or not executable" >&2
+if [[ ! -x "${LAMAR_DISASSEMBLER_BIN}" ]]; then
+  echo "::error file=${LAMAR_DISASSEMBLER_BIN}::lamar_disassembler executable not found or not executable" >&2
   exit 1
 fi
 
@@ -65,18 +65,18 @@ for BC_FILE in "${BC_FILES[@]}"; do
     continue
   fi
 
-  if ! "${LAMAR_BIN}" --print-disassemble --disassemble-only "${BC_FILE}" >"${LM_OUT}" 2>"${LM_ERR}"; then
+  if ! "${LAMAR_DISASSEMBLER_BIN}" --print-disassemble "${BC_FILE}" >"${LM_OUT}" 2>"${LM_ERR}"; then
     STATUS=$?
     ((++FAIL))
     ERR_MSG=$(tr -d '\r' <"${LM_ERR}" | head -c 400)
-    echo "::error file=${BC_FILE}::lamar failed (exit ${STATUS}) ${ERR_MSG}" >&2
-    FAILURES+=("${BC_FILE}: lamar failed")
+    echo "::error file=${BC_FILE}::lamar_disassembler failed (exit ${STATUS}) ${ERR_MSG}" >&2
+    FAILURES+=("${BC_FILE}: lamar_disassembler failed")
     continue
   fi
 
   if ! diff -u "${BR_OUT}" "${LM_OUT}" >"${TMP_DIR}/diff_${TOTAL}.txt"; then
     ((++FAIL))
-    echo "::error file=${BC_FILE}::Output mismatch between byterun and lamar" >&2
+    echo "::error file=${BC_FILE}::Output mismatch between byterun and lamar_disassembler" >&2
     cat "${TMP_DIR}/diff_${TOTAL}.txt"
     FAILURES+=("${BC_FILE}: output mismatch")
     continue

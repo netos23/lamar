@@ -55,7 +55,7 @@ bool has_next(lamar::OpCode opcode) noexcept {
     }
 }
 
-uint8_t instruction_length(lamar::OpCode opcode) noexcept {
+uint32_t instruction_length(lamar::OpCode opcode) noexcept {
     switch (opcode) {
         case lamar::ADD:
         case lamar::SUB:
@@ -109,7 +109,7 @@ uint8_t instruction_length(lamar::OpCode opcode) noexcept {
         case lamar::CLOSURE:
             return sizeof(lamar::OpCode) + 2 * sizeof(uint32_t);
         case lamar::CALLC:
-            break;
+            return sizeof(lamar::OpCode) + sizeof(uint32_t);
         case lamar::CALL:
         case lamar::TAG:
             return sizeof(lamar::OpCode) + 2 * sizeof(uint32_t);
@@ -137,7 +137,7 @@ uint8_t instruction_length(lamar::OpCode opcode) noexcept {
             return sizeof(lamar::OpCode);
     }
 
-    return -1;
+    return 0;
 }
 
 uint32_t read_uint(const lamar::ByteFile &byte_file, uint32_t offset) {
@@ -176,6 +176,12 @@ void lamar::IdiomAnalyzer::analyze(const lamar::ByteFile &byte_file, std::ostrea
         queue.pop_back();
 
         auto opcode = byte_file.program_code[offset];
+        auto length = instruction_length(opcode);
+
+        if (length == 0) {
+            diagnostics::push_error_diagnostic("Unknown or zero-length opcode", offset);
+            continue;
+        }
 
         if (has_jump(opcode)) {
             auto address = read_uint(byte_file, offset + sizeof(OpCode)); // skip operand
@@ -193,7 +199,13 @@ void lamar::IdiomAnalyzer::analyze(const lamar::ByteFile &byte_file, std::ostrea
         }
 
         if (has_next(opcode)) {
-            auto address = offset + instruction_length(opcode);
+            auto address = offset + length;
+
+            if (address >= byte_file.program_code.size()) {
+                diagnostics::push_error_diagnostic("Next instruction out of bounds", offset);
+                continue;
+            }
+
             reachable[address] = true;
             queue.push_back(address);
         }
@@ -219,7 +231,13 @@ void lamar::IdiomAnalyzer::analyze(const lamar::ByteFile &byte_file, std::ostrea
 
         auto opcode = byte_file.program_code[ip];
         auto length = instruction_length(opcode);
-        if (ip + length >= byte_file.program_code.size()) {
+
+        if (length == 0) {
+            diagnostics::push_error_diagnostic("Unknown or zero-length opcode", ip);
+            return;
+        }
+
+        if (ip + length > byte_file.program_code.size()) {
             diagnostics::push_error_diagnostic("Not enough bytes for instruction", ip);
             return;
         }
@@ -228,10 +246,30 @@ void lamar::IdiomAnalyzer::analyze(const lamar::ByteFile &byte_file, std::ostrea
 
         if (has_next(opcode) && !is_call(opcode)) {
             size_t address = ip + length;
-            auto next_opcode = byte_file.program_code[address];
 
-            if (reachable[next_opcode] && !jump_targets[address]) {
-                make_idiom(ip, length + instruction_length(next_opcode));
+            if (address >= byte_file.program_code.size()) {
+                diagnostics::push_error_diagnostic("Next instruction out of bounds", ip);
+                ip += length;
+                continue;
+            }
+
+            auto next_opcode = byte_file.program_code[address];
+            auto next_length = instruction_length(next_opcode);
+
+            if (next_length == 0) {
+                diagnostics::push_error_diagnostic("Unknown or zero-length opcode", address);
+                ip += length;
+                continue;
+            }
+
+            if (address + next_length > byte_file.program_code.size()) {
+                diagnostics::push_error_diagnostic("Not enough bytes for instruction", address);
+                ip += length;
+                continue;
+            }
+
+            if (reachable[address] && !jump_targets[address]) {
+                make_idiom(ip, length + next_length);
             }
         }
 

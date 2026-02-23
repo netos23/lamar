@@ -1,5 +1,6 @@
 # Lamar
-
+[![CI](https://github.com/netos23/lamar/actions/workflows/ci.yml/badge.svg)](https://github.com/netos23/lamar/actions/workflows/ci.yml)
+---
 Интерпретатор байткода языка LaMa.
 
 ---
@@ -86,6 +87,16 @@ test/run_performance.sh
   Переменные окружения: `BC_DIR` (каталог с *.bc, по умолчанию `performance/`), `LAMAR_BIN` 
   (по умолчанию `cmake-build-release/lamar`), `LAMAC_BIN` (по умолчанию `lamac`, можно передать путь).
 
+- Анализ идиом (анализ с помощью `lamar_analyzer`):
+
+```bash
+test/run_analyzer_perf.sh
+```
+
+  Переменные окружения: `BC_DIR` (каталог с *.bc, по умолчанию `performance/`), `ANALYZER_BIN` (по умолчанию `cmake-build-release/lamar_analyzer`).
+
+  Скрипт `test/run_analyzer_perf.sh` перебирает все `.bc` из `BC_DIR`, запускает `lamar_analyzer` и выводит сводку по ошибкам.
+
 При необходимости на ARM/Mac можно воспользоваться контейнером из `docker/README.MD`.
 
 
@@ -97,4 +108,4 @@ test/run_performance.sh
 | lamac -s      | 171.67                | +50%   |
 | lamac -i      | 574.08                | +234%  |
 
-* Mac OS m1 16GB RAM with Rosseta 2, другие измерения на Github Actions (Linux, 4 vCPU, 16GB RAM). 
+* Mac OS m1 16GB RAM with Rosseta 2, другие измерения на Github Actions (Linux, 4 vCPU, 16GB RAM).

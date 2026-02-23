@@ -53,8 +53,6 @@ namespace lamar {
         output << std::dec << "Code:" << '\n';
 
         disassemble_range(0, static_cast<uint32_t>(byte_file.program_code.size()), byte_file, output);
-
-        output << "<end>\n";
     }
 
     void Disassembler::disassemble_range(

@@ -52,9 +52,20 @@ namespace lamar {
 
         output << std::dec << "Code:" << '\n';
 
+        disassemble_range(0, static_cast<uint32_t>(byte_file.program_code.size()), byte_file, output);
+
+        output << "<end>\n";
+    }
+
+    void Disassembler::disassemble_range(
+            uint32_t offset,
+            uint32_t length,
+            const ByteFile &byte_file,
+            std::ostream &output
+    ) const {
         const auto *base = reinterpret_cast<const uint8_t *>(byte_file.program_code.data());
-        const auto *ip = base;
-        const auto *end = base + byte_file.program_code.size();
+        const auto *ip = base + offset;
+        const auto *end = base + offset + length;
 
         constexpr const char *ops[] = {"+", "-", "*", "/", "%", "<", "<=", ">", ">=", "==", "!=", "&&", "||"};
         constexpr const char *pats[] = {"=str", "#string", "#array", "#sexp", "#ref", "#val", "#fun"};
@@ -90,7 +101,8 @@ namespace lamar {
                             output << "STRING\t" << read_string(byte_file, read_int32(ip, end));
                             break;
                         case 0x2:
-                            output << "SEXP\t" << read_string(byte_file, read_int32(ip, end)) << ' ' << read_int32(ip, end);
+                            output << "SEXP\t" << read_string(byte_file, read_int32(ip, end)) << ' '
+                                   << read_int32(ip, end);
                             break;
                         case 0x3:
                             output << "STI";
@@ -153,10 +165,12 @@ namespace lamar {
                 case 0x5: {
                     switch (l) {
                         case 0x0:
-                            output << "CJMPz\t0x" << std::hex << std::setw(8) << std::setfill('0') << read_int32(ip, end);
+                            output << "CJMPz\t0x" << std::hex << std::setw(8) << std::setfill('0')
+                                   << read_int32(ip, end);
                             break;
                         case 0x1:
-                            output << "CJMPnz\t0x" << std::hex << std::setw(8) << std::setfill('0') << read_int32(ip, end);
+                            output << "CJMPnz\t0x" << std::hex << std::setw(8) << std::setfill('0')
+                                   << read_int32(ip, end);
                             break;
                         case 0x2:
                             output << "BEGIN\t" << std::dec << read_int32(ip, end) << ' ' << read_int32(ip, end);
@@ -165,7 +179,8 @@ namespace lamar {
                             output << "CBEGIN\t" << std::dec << read_int32(ip, end) << ' ' << read_int32(ip, end);
                             break;
                         case 0x4: {
-                            output << "CLOSURE\t0x" << std::hex << std::setw(8) << std::setfill('0') << read_int32(ip, end);
+                            output << "CLOSURE\t0x" << std::hex << std::setw(8) << std::setfill('0')
+                                   << read_int32(ip, end);
                             const int32_t n = read_int32(ip, end);
                             for (int i = 0; i < n; ++i) {
                                 uint8_t scope = *ip++;
@@ -196,7 +211,8 @@ namespace lamar {
                                    << ' ' << std::dec << read_int32(ip, end);
                             break;
                         case 0x7:
-                            output << "TAG\t" << read_string(byte_file, read_int32(ip, end)) << ' ' << std::dec << read_int32(ip, end);
+                            output << "TAG\t" << read_string(byte_file, read_int32(ip, end)) << ' ' << std::dec
+                                   << read_int32(ip, end);
                             break;
                         case 0x8:
                             output << "ARRAY\t" << std::dec << read_int32(ip, end);
@@ -254,7 +270,5 @@ namespace lamar {
             output << '\n';
             output << std::dec;
         }
-
-        output << "<end>\n";
     }
 }

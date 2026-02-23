@@ -9,26 +9,40 @@ add_subdirectory(${RUNTIME_DIR} ${CMAKE_BINARY_DIR}/third_party/Lama/runtime)
 
 add_subdirectory(${CMAKE_SOURCE_DIR}/third_party/Lama/byterun ${CMAKE_BINARY_DIR}/third_party/Lama/byterun)
 
-add_executable(lamar
-
+set(COMMON_SOURCES
         include/bytecode.hpp
         include/diagnostics.hpp
         include/disassembler.hpp
+
         include/loader.hpp
-        include/interpreter.hpp
         include/runtime.hpp
-        include/value.hpp
 
         src/common/bytecode.cpp
         src/common/diagnostics.cpp
         src/disassembler/disassembler.cpp
+
+        src/loader/loader.cpp
+)
+set(LAMAR_SOURCES
+        include/interpreter.hpp
+        include/value.hpp
+        include/frame.hpp
+
         src/interpreter/interpreter.cpp
         src/interpreter/value.cpp
-        src/loader/loader.cpp
-
-        src/main.cpp
-        include/frame.hpp
         src/interpreter/frame.cpp
+
+        src/driver.cpp
+)
+set(ANALYZER_SOURCES
+        include/idiom_analyzer.hpp
+        src/idiom_analyzer/idiom_analyzer.cpp
+        src/analyzer.cpp
+)
+
+add_executable(lamar
+        ${COMMON_SOURCES}
+        ${LAMAR_SOURCES}
 )
 
 # Disable sanitizers on linux
@@ -37,13 +51,21 @@ if (CMAKE_BUILD_TYPE MATCHES "Debug" AND CMAKE_SYSTEM_NAME STREQUAL "Darwin")
             BEFORE PRIVATE -fsanitize=undefined -fsanitize=address
     )
 else ()
-    if(MSVC)
+    if (MSVC)
         set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /WX")
-    else()
+    else ()
         set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3")
-    endif()
+    endif ()
 endif ()
 
 
 target_include_directories(lamar PRIVATE include/ ${RUNTIME_DIR})
 target_link_libraries(lamar PRIVATE runtime)
+
+
+add_executable(lamar_analyzer
+        ${COMMON_SOURCES}
+        ${ANALYZER_SOURCES}
+)
+target_include_directories(lamar_analyzer PRIVATE include/ ${RUNTIME_DIR})
+target_link_libraries(lamar_analyzer PRIVATE runtime)

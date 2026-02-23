@@ -63,7 +63,7 @@ lamar::ByteFile lamar::Loader::read_byte_file() {
 std::vector<lamar::OpCode> lamar::Loader::read_bytecode() {
     auto pos = input_stream_.tellg();
     if (pos == std::streampos(-1)) {
-        diagnostics::push_error_diagnostic("Failed to determine bytecode start offset", 0);
+        diagnostics::push_error_diagnostic("Failed to determine bytecode start offset_", 0);
         return {};
     }
     input_stream_.seekg(0, std::ios_base::end);
@@ -73,7 +73,7 @@ std::vector<lamar::OpCode> lamar::Loader::read_bytecode() {
     }
     auto end = input_stream_.tellg();
     if (end == std::streampos(-1)) {
-        diagnostics::push_error_diagnostic("Failed to determine bytecode end offset", static_cast<uint32_t>(pos));
+        diagnostics::push_error_diagnostic("Failed to determine bytecode end offset_", static_cast<uint32_t>(pos));
         return {};
     }
     auto len = end - pos;

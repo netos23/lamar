@@ -10,8 +10,10 @@
 
 namespace lamar {
     class Disassembler {
+
     public:
         void disassemble(const ByteFile &byte_file, std::ostream &output) const;
+        void disassemble_range(uint32_t offset, uint32_t length, const ByteFile &byte_file, std::ostream &output) const;
     };
 }
 

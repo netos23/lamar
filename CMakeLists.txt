@@ -39,6 +39,9 @@ set(ANALYZER_SOURCES
         src/idiom_analyzer/idiom_analyzer.cpp
         src/analyzer.cpp
 )
+set(DISASSEMBLER_SOURCES
+        src/disassembler.cpp
+)
 
 add_executable(lamar
         ${COMMON_SOURCES}
@@ -69,3 +72,10 @@ add_executable(lamar_analyzer
 )
 target_include_directories(lamar_analyzer PRIVATE include/ ${RUNTIME_DIR})
 target_link_libraries(lamar_analyzer PRIVATE runtime)
+
+add_executable(lamar_disassembler
+        ${COMMON_SOURCES}
+        ${DISASSEMBLER_SOURCES}
+)
+target_include_directories(lamar_disassembler PRIVATE include/ ${RUNTIME_DIR})
+target_link_libraries(lamar_disassembler PRIVATE runtime)

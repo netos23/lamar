@@ -31,15 +31,15 @@ namespace lamar {
     private:
 
 
-        inline void push_error_diagnostic(std::string_view message) const {
+        void push_error_diagnostic(std::string_view message) const {
             diagnostics::push_error_diagnostic(message, ip);
         }
 
-        inline size_t stack_size() { // NOLINT(*-convert-member-functions-to-static)
+        size_t stack_size() { // NOLINT(*-convert-member-functions-to-static)
             return __gc_stack_bottom - __gc_stack_top;
         }
 
-        inline void init_stack() {
+        void init_stack() {
             auto size = byte_file_.global_area_size + 2;
             __gc_stack_top = stack_;
             __gc_stack_bottom = stack_ + size;
@@ -55,7 +55,7 @@ namespace lamar {
 
         }
 
-        inline void push(Value v) {
+        void push(Value v) {
 #ifndef DISABLE_RUNTIME_CHECKS
             if (stack_size() + 1 >= MAX_STACK_SIZE) {
                 push_error_diagnostic("Stack overflow");
@@ -186,7 +186,7 @@ namespace lamar {
             return Value(&captures[address + 1]);
         }
 
-        inline void set_local(int32_t address, Value &value) {
+        void set_local(int32_t address, Value &value) {
             auto &frame = call_stack_[fp];
 #ifndef DISABLE_RUNTIME_CHECKS
             if (static_cast<uint32_t>(address) >= frame.get_locals_count()) {
@@ -196,7 +196,7 @@ namespace lamar {
             stack_[frame.get_sp() + address] = value.as_repr();
         }
 
-        inline void set_arg(int32_t address, Value &value) {
+        void set_arg(int32_t address, Value &value) {
             auto &frame = call_stack_[fp];
 #ifndef DISABLE_RUNTIME_CHECKS
             if (address >= frame.get_args_count()) {
@@ -207,7 +207,7 @@ namespace lamar {
             stack_[frame.get_sp() - frame.get_args_count() + address] = value.as_repr();
         }
 
-        inline void set_capture(int32_t address, Value &value) {
+        void set_capture(int32_t address, Value &value) {
             auto closure = get_arg(-1);
 #ifndef DISABLE_RUNTIME_CHECKS
             if (!closure.is_closure()) {
@@ -225,19 +225,19 @@ namespace lamar {
             captures[address + 1] = value.as_repr();
         }
 
-        inline void interpret_add() {
+        void interpret_add() {
             interpret_binop([](aint lhs, aint rhs) { return lhs + rhs; });
         }
 
-        inline void interpret_sub() {
+        void interpret_sub() {
             interpret_binop([](aint lhs, aint rhs) { return lhs - rhs; });
         }
 
-        inline void interpret_mul() {
+        void interpret_mul() {
             interpret_binop([](aint lhs, aint rhs) { return lhs * rhs; });
         }
 
-        inline void interpret_div() {
+        void interpret_div() {
             interpret_binop(
                     [](aint lhs, aint rhs) { return lhs / rhs; },
 #ifndef DISABLE_RUNTIME_CHECKS
@@ -250,7 +250,7 @@ namespace lamar {
             );
         }
 
-        inline void interpret_mod() {
+        void interpret_mod() {
             interpret_binop(
                     [](aint lhs, aint rhs) { return lhs % rhs; },
 #ifndef DISABLE_RUNTIME_CHECKS
@@ -263,23 +263,23 @@ namespace lamar {
             );
         }
 
-        inline void interpret_lt() {
+        void interpret_lt() {
             interpret_binop([](aint lhs, aint rhs) -> aint { return lhs < rhs; });
         }
 
-        inline void interpret_le() {
+        void interpret_le() {
             interpret_binop([](aint lhs, aint rhs) -> aint { return lhs <= rhs; });
         }
 
-        inline void interpret_gt() {
+        void interpret_gt() {
             interpret_binop([](aint lhs, aint rhs) -> aint { return lhs > rhs; });
         }
 
-        inline void interpret_ge() {
+        void interpret_ge() {
             interpret_binop([](aint lhs, aint rhs) -> aint { return lhs >= rhs; });
         }
 
-        inline void interpret_eq() {
+        void interpret_eq() {
             auto rhs = pop();
             auto lhs = pop();
 
@@ -297,24 +297,24 @@ namespace lamar {
             push(Value(res));
         }
 
-        inline void interpret_ne() {
+        void interpret_ne() {
             interpret_binop([](aint lhs, aint rhs) -> aint { return lhs != rhs; });
         }
 
-        inline void interpret_and() {
+        void interpret_and() {
             interpret_binop([](aint lhs, aint rhs) -> aint { return lhs && rhs; });
         }
 
-        inline void interpret_or() {
+        void interpret_or() {
             interpret_binop([](aint lhs, aint rhs) -> aint { return lhs || rhs; });
         }
 
-        inline void interpret_const() {
+        void interpret_const() {
             auto c = static_cast<aint>(read_uint());
             push(Value(c));
         }
 
-        inline void interpret_string() {
+        void interpret_string() {
             auto index = read_uint();
 
 #ifndef DISABLE_RUNTIME_CHECKS
@@ -328,7 +328,7 @@ namespace lamar {
             push(Value(str));
         }
 
-        inline void interpret_s_exp() {
+        void interpret_s_exp() {
             auto tag = read_uint();
             auto size = read_uint();
 
@@ -353,7 +353,7 @@ namespace lamar {
             push(Value(sexp));
         }
 
-        inline void interpret_sti() {
+        void interpret_sti() {
             auto value = pop();
             auto reference = pop();
 
@@ -368,7 +368,7 @@ namespace lamar {
             push(value);
         }
 
-        inline void interpret_sta() {
+        void interpret_sta() {
             Value val = pop();
             Value index = pop();
 
@@ -401,7 +401,7 @@ namespace lamar {
             push(val);
         }
 
-        inline void interpret_jmp() {
+        void interpret_jmp() {
             auto location = read_uint();
 
 #ifndef DISABLE_RUNTIME_CHECKS
@@ -413,7 +413,7 @@ namespace lamar {
             ip = location;
         }
 
-        inline void interpret_end() {
+        void interpret_end() {
             auto value = pop();
             auto &frame = call_stack_[fp];
 
@@ -431,16 +431,16 @@ namespace lamar {
             push(value);
         }
 
-        inline void interpret_drop() {
+        void interpret_drop() {
             pop();
         }
 
-        inline void interpret_dup() {
+        void interpret_dup() {
             auto value = peek();
             push(value);
         }
 
-        inline void interpret_swap() {
+        void interpret_swap() {
             auto a = pop();
             auto b = pop();
 
@@ -448,7 +448,7 @@ namespace lamar {
             push(a);
         }
 
-        inline void interpret_elem() {
+        void interpret_elem() {
             auto index = pop();
 
 #ifndef DISABLE_RUNTIME_CHECKS
@@ -470,79 +470,79 @@ namespace lamar {
             push(Value(value));
         }
 
-        inline void interpret_ld_g() {
+        void interpret_ld_g() {
             interpret_load("Global index out of stack bounds", [this](uint32_t address) {
                 return Value(stack_[address]);
             });
         }
 
-        inline void interpret_ld_l() {
+        void interpret_ld_l() {
             interpret_load("Local index out of stack bounds", [this](uint32_t address) {
                 return get_local(static_cast<int32_t>(address));
             });
         }
 
-        inline void interpret_ld_a() {
+        void interpret_ld_a() {
             interpret_load("Arg index out of stack bounds", [this](uint32_t address) {
                 return get_arg(static_cast<int32_t>(address));
             });
         }
 
-        inline void interpret_ld_c() {
+        void interpret_ld_c() {
             interpret_load("Capture index out of stack bounds", [this](uint32_t address) {
                 return get_capture(static_cast<int32_t>(address));
             });
         }
 
-        inline void interpret_lda_g() {
+        void interpret_lda_g() {
             interpret_load_address("Global index out of bounds", [this](uint32_t address) {
                 return Value(&stack_[address]);
             });
         }
 
-        inline void interpret_lda_l() {
+        void interpret_lda_l() {
             interpret_load_address("Local index out of stack bounds", [this](uint32_t address) {
                 return get_local_address(static_cast<int32_t>(address));
             });
         }
 
-        inline void interpret_lda_a() {
+        void interpret_lda_a() {
             interpret_load_address("Arg index out of stack bounds", [this](uint32_t address) {
                 return get_arg_address(static_cast<int32_t>(address));
             });
         }
 
-        inline void interpret_lda_c() {
+        void interpret_lda_c() {
             interpret_load_address("Capture index out of stack bounds", [this](uint32_t address) {
                 return get_capture_address(static_cast<int32_t>(address));
             });
         }
 
-        inline void interpret_st_g() {
+        void interpret_st_g() {
             interpret_store("Global index out of stack bounds", [this](uint32_t address, Value &value) {
                 stack_[address] = value.as_repr();
             });
         }
 
-        inline void interpret_st_l() {
+        void interpret_st_l() {
             interpret_store("Local index out of stack bounds", [this](uint32_t address, Value &value) {
                 set_local(static_cast<int32_t>(address), value);
             });
         }
 
-        inline void interpret_st_a() {
+        void interpret_st_a() {
             interpret_store("Arg index out of stack bounds", [this](uint32_t address, Value &value) {
                 set_arg(static_cast<int32_t>(address), value);
             });
         }
 
-        inline void interpret_st_c() {
+        void interpret_st_c() {
             interpret_store("Capture index out of stack bounds", [this](uint32_t address, Value &value) {
                 set_capture(static_cast<int32_t>(address), value);
             });
         }
 
-        inline void interpret_conditional_jump(bool jump_on_true) {
+        void interpret_conditional_jump(bool jump_on_true) {
             auto location = read_uint();
 
 #ifndef DISABLE_RUNTIME_CHECKS
@@ -564,15 +564,15 @@ namespace lamar {
             }
         }
 
-        inline void interpret_cjmpz() {
+        void interpret_cjmpz() {
             interpret_conditional_jump(false);
         }
 
-        inline void interpret_cjmpnz() {
+        void interpret_cjmpnz() {
             interpret_conditional_jump(true);
         }
 
-        inline void interpret_begin() {
+        void interpret_begin() {
             auto args_count = read_uint();
             auto locals_count = read_uint();
 
@@ -591,7 +591,7 @@ namespace lamar {
             }
         }
 
-        inline void interpret_cbegin() {
+        void interpret_cbegin() {
             auto args_count = read_uint();
             auto locals_count = read_uint();
 
@@ -610,7 +610,7 @@ namespace lamar {
             }
         }
 
-        inline void interpret_closure() {
+        void interpret_closure() {
             auto address = read_uint();
 
 #ifndef DISABLE_RUNTIME_CHECKS
@@ -650,7 +650,7 @@ namespace lamar {
             push(Value(closure));
         }
 
-        inline void interpret_callc() {
+        void interpret_callc() {
             auto args_count = read_uint();
 
             auto closure = peek(args_count);
@@ -691,12 +691,8 @@ namespace lamar {
             ip = closure_address;
         }
 
-        inline void interpret_call() {
+        void interpret_call() {
             auto proc_address = read_uint();
-
-            if (proc_address == 0x00000075) {
-                proc_address *= 1;
-            }
 
 #ifndef DISABLE_RUNTIME_CHECKS
             if (byte_file_.program_code.size() <= proc_address) {
@@ -726,7 +722,7 @@ namespace lamar {
             ip = proc_address;
         }
 
-        inline void interpret_tag() {
+        void interpret_tag() {
             auto tag = read_uint();
             auto size = read_uint();
 
@@ -749,7 +745,7 @@ namespace lamar {
             push(Value(static_cast<auint>(result)));
         }
 
-        inline void interpret_array() {
+        void interpret_array() {
             auto n = read_uint();
 
             auto value = pop();
@@ -757,7 +753,7 @@ namespace lamar {
             push(Value(static_cast<auint>(result)));
         }
 
-        inline void interpret_fail() {
+        void interpret_fail() {
             auto line = read_uint();
             auto column = read_uint();
             auto value = pop();
@@ -765,13 +761,13 @@ namespace lamar {
             Bmatch_failure(value.as_ptr(), &byte_file_.file_name[0], line, column);
         }
 
-        inline void interpret_line() {
+        void interpret_line() {
             auto line = read_uint();
             auto &frame = call_stack_[fp];
             frame.set_line(line);
         }
 
-        inline void interpret_patteqstr() {
+        void interpret_patteqstr() {
             auto b = pop();
             auto a = pop();
             auto result = Bstring_patt(a.as_ptr(), b.as_ptr());
@@ -779,54 +775,54 @@ namespace lamar {
             push(Value(static_cast<auint>(result)));
         }
 
-        inline void interpret_pattstring() {
+        void interpret_pattstring() {
             auto value = pop();
             auto result = Bstring_tag_patt(value.as_ptr());
 
             push(Value(static_cast<auint>(result)));
         }
 
-        inline void interpret_pattarray() {
+        void interpret_pattarray() {
             auto value = pop();
             auto result = Barray_tag_patt(value.as_ptr());
 
             push(Value(static_cast<auint>(result)));
         }
 
-        inline void interpret_pattsexp() {
+        void interpret_pattsexp() {
             auto value = pop();
             auto result = Bsexp_tag_patt(value.as_ptr());
 
             push(Value(static_cast<auint>(result)));
         }
 
-        inline void interpret_pattref() {
+        void interpret_pattref() {
             auto value = pop();
             auto result = Bboxed_patt(value.as_ptr());
 
             push(Value(static_cast<auint>(result)));
         }
 
-        inline void interpret_pattval() {
+        void interpret_pattval() {
             auto value = pop();
             auto result = Bunboxed_patt(value.as_ptr());
 
             push(Value(static_cast<auint>(result)));
         }
 
-        inline void interpret_pattfun() {
+        void interpret_pattfun() {
             auto value = pop();
             auto result = Bclosure_tag_patt(value.as_ptr());
 
             push(Value(static_cast<auint>(result)));
         }
 
-        inline void interpret_call_lread() {
+        void interpret_call_lread() {
             auto value = Lread();
             push(Value(static_cast<auint>(value)));
         }
 
-        inline void interpret_call_lwrite() {
+        void interpret_call_lwrite() {
             auto value = pop();
 
 #ifndef DISABLE_RUNTIME_CHECKS
@@ -840,7 +836,7 @@ namespace lamar {
             push(Value(static_cast<auint>(result)));
         }
 
-        inline void interpret_call_llength() {
+        void interpret_call_llength() {
             auto x = pop();
 
 #ifndef DISABLE_RUNTIME_CHECKS
@@ -853,14 +849,14 @@ namespace lamar {
             push(Value(static_cast<auint>(len)));
         }
 
-        inline void interpret_call_lstring() {
+        void interpret_call_lstring() {
             auto value = pop();
             void *ptr = value.as_ptr();
             auto str = Lstring(reinterpret_cast<aint *>(&ptr));
             push(Value(str));
         }
 
-        inline void interpret_call_barray() {
+        void interpret_call_barray() {
             auto len = read_uint();
 #ifndef DISABLE_RUNTIME_CHECKS
             if (len > stack_size()) {
@@ -876,7 +872,7 @@ namespace lamar {
 
 
         template<typename Operation, typename ExtraCheck>
-        inline void interpret_binop(Operation op, ExtraCheck extra_check) {
+        void interpret_binop(Operation op, ExtraCheck extra_check) {
             auto rhs = pop();
             auto lhs = pop();
 
@@ -897,12 +893,12 @@ namespace lamar {
         }
 
         template<typename Operation>
-        inline void interpret_binop(Operation op) {
+        void interpret_binop(Operation op) {
             interpret_binop(op, [](aint, aint) {});
         }
 
         template<typename Getter>
-        inline void interpret_load(std::string_view bounds_error, Getter getter) {
+        void interpret_load(std::string_view bounds_error, Getter getter) {
             auto address = read_uint();
 
 #ifndef DISABLE_RUNTIME_CHECKS
@@ -915,7 +911,7 @@ namespace lamar {
         }
 
         template<typename Getter>
-        inline void interpret_load_address(std::string_view bounds_error, Getter getter) {
+        void interpret_load_address(std::string_view bounds_error, Getter getter) {
             auto address = read_uint();
 
 #ifndef DISABLE_RUNTIME_CHECKS
@@ -928,7 +924,7 @@ namespace lamar {
         }
 
         template<typename Setter>
-        inline void interpret_store(std::string_view bounds_error, Setter setter) {
+        void interpret_store(std::string_view bounds_error, Setter setter) {
             auto value = pop();
             auto address = read_uint();
 

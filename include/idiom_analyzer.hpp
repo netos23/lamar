@@ -14,21 +14,22 @@ namespace lamar {
     class Idiom {
     public:
         Idiom(uint32_t offset, uint32_t length, const ByteFile &byte_file);
+
         Idiom(const Idiom &other) noexcept;
         Idiom(Idiom &&other) noexcept;
         bool operator==(const Idiom &other) const noexcept;
         Idiom &operator=(const Idiom &other) noexcept;
         Idiom &operator=(Idiom &&other) noexcept;
 
-        uint32_t get_offset() const;
+        [[nodiscard]] uint32_t get_offset() const;
 
-        uint32_t get_length() const;
+        [[nodiscard]] uint32_t get_length() const;
 
     private:
         uint32_t offset_;
         uint32_t length_;
         const ByteFile &byte_file_;
-        friend struct std::hash<lamar::Idiom>;
+        friend struct std::less<lamar::Idiom>;
     };
 
 
@@ -45,8 +46,8 @@ namespace lamar {
 
 namespace std {
     template<>
-    struct hash<lamar::Idiom> {
-        size_t operator()(const lamar::Idiom &idiom) const noexcept;
+    struct less<lamar::Idiom> {
+        bool operator()(const lamar::Idiom &lhs, const lamar::Idiom &rhs) const noexcept;
     };
 }
 

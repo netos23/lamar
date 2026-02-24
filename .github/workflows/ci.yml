@@ -55,6 +55,11 @@ jobs:
           ./scripts/make_examples.sh
           ./scripts/make_perf.sh
 
+      - name: Run bytecode disassembly tests
+        env:
+          LAMAR_DISASSEMBLER_BIN: ${{ github.workspace }}/cmake-build-release/lamar_disassembler
+        run: ./test/run_disassemble_all.sh
+
 # Fails on GitHub Actions
 #      - name: Run bytecode disassembly tests
 #        env:
@@ -75,4 +80,3 @@ jobs:
         env:
           LAMAR_BIN: ${{ github.workspace }}/cmake-build-release/lamar
         run: ./test/run_performance.sh
-

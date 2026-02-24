@@ -54,89 +54,8 @@ bool has_next(lamar::OpCode opcode) noexcept {
     }
 }
 
-uint32_t instruction_length(lamar::OpCode opcode) noexcept {
-    switch (opcode) {
-        case lamar::ADD:
-        case lamar::SUB:
-        case lamar::MUL:
-        case lamar::DIV:
-        case lamar::MOD:
-        case lamar::LT:
-        case lamar::LE:
-        case lamar::GT:
-        case lamar::GE:
-        case lamar::EQ:
-        case lamar::NE:
-        case lamar::AND:
-        case lamar::OR:
-            return sizeof(lamar::OpCode);
-        case lamar::CONST:
-            return sizeof(lamar::OpCode) + sizeof(uint32_t);
-        case lamar::STRING:
-            return sizeof(lamar::OpCode) + sizeof(uint32_t);
-        case lamar::SEXP:
-            return sizeof(lamar::OpCode) + 2 * sizeof(uint32_t);
-        case lamar::STI:
-        case lamar::STA:
-            return sizeof(lamar::OpCode);
-        case lamar::JMP:
-            return sizeof(lamar::OpCode) + sizeof(uint32_t);
-        case lamar::END:
-        case lamar::RET:
-        case lamar::DROP:
-        case lamar::DUP:
-        case lamar::SWAP:
-        case lamar::ELEM:
-            return sizeof(lamar::OpCode);
-        case lamar::LD_G:
-        case lamar::LD_L:
-        case lamar::LD_A:
-        case lamar::LD_C:
-        case lamar::LDA_G:
-        case lamar::LDA_L:
-        case lamar::LDA_A:
-        case lamar::LDA_C:
-        case lamar::ST_G:
-        case lamar::ST_L:
-        case lamar::ST_A:
-        case lamar::ST_C:
-        case lamar::CJMPZ:
-        case lamar::CJMPNZ:
-            return sizeof(lamar::OpCode) + sizeof(uint32_t);
-        case lamar::BEGIN:
-        case lamar::CBEGIN:
-        case lamar::CLOSURE:
-            return sizeof(lamar::OpCode) + 2 * sizeof(uint32_t);
-        case lamar::CALLC:
-            return sizeof(lamar::OpCode) + sizeof(uint32_t);
-        case lamar::CALL:
-        case lamar::TAG:
-            return sizeof(lamar::OpCode) + 2 * sizeof(uint32_t);
-        case lamar::ARRAY:
-            return sizeof(lamar::OpCode) + sizeof(uint32_t);
-        case lamar::FAIL:
-            return sizeof(lamar::OpCode) + 2 * sizeof(uint32_t);
-        case lamar::LINE:
-            return sizeof(lamar::OpCode) + sizeof(uint32_t);
-        case lamar::PATTEQSTR:
-        case lamar::PATTSTRING:
-        case lamar::PATTARRAY:
-        case lamar::PATTSEXP:
-        case lamar::PATTREF:
-        case lamar::PATTVAL:
-        case lamar::PATTFUN:
-        case lamar::CALL_LREAD:
-        case lamar::CALL_LWRITE:
-        case lamar::CALL_LLENGTH:
-        case lamar::CALL_LSTRING:
-            return sizeof(lamar::OpCode);
-        case lamar::CALL_BARRAY:
-            return sizeof(lamar::OpCode) + sizeof(uint32_t);
-        case lamar::EOF_:
-            return sizeof(lamar::OpCode);
-    }
-
-    return 0;
+uint32_t lamar::IdiomAnalyzer::instruction_length(const lamar::ByteFile &byte_file, uint32_t offset) {
+    return disassembler_.disassemble_instruction(byte_file, ofs_, offset);
 }
 
 uint32_t read_uint(const lamar::ByteFile &byte_file, uint32_t offset) {
@@ -153,7 +72,7 @@ uint32_t read_uint(const lamar::ByteFile &byte_file, uint32_t offset) {
 }
 
 
-void lamar::IdiomAnalyzer::analyze(const lamar::ByteFile &byte_file, std::ostream &output) const {
+void lamar::IdiomAnalyzer::analyze(const lamar::ByteFile &byte_file, std::ostream &output) {
     std::vector<bool> reachable(byte_file.program_code.size(), false);
     std::vector<bool> jump_targets(byte_file.program_code.size(), false);
 
@@ -179,12 +98,7 @@ void lamar::IdiomAnalyzer::analyze(const lamar::ByteFile &byte_file, std::ostrea
         queue.pop_back();
 
         auto opcode = byte_file.program_code[offset];
-        auto length = instruction_length(opcode);
-
-        if (length == 0) {
-            diagnostics::push_error_diagnostic("Unknown or zero-length opcode", offset);
-            continue;
-        }
+        auto length = instruction_length(byte_file, offset);
 
         if (has_jump(opcode)) {
             auto address = read_uint(byte_file, offset + sizeof(OpCode)); // skip operand
@@ -218,14 +132,7 @@ void lamar::IdiomAnalyzer::analyze(const lamar::ByteFile &byte_file, std::ostrea
         }
     }
 
-    std::vector<Idiom> idiom_occurrences;
-
-    auto make_idiom = [&idiom_occurrences, &byte_file](
-            uint32_t offset,
-            uint32_t length
-    ) {
-        idiom_occurrences.emplace_back(offset, length, byte_file);
-    };
+    std::vector<std::pair<Idiom, uint32_t>> idiom_occurrences;
 
     uint32_t ip = 0;
     while (ip < byte_file.program_code.size()) {
@@ -235,19 +142,14 @@ void lamar::IdiomAnalyzer::analyze(const lamar::ByteFile &byte_file, std::ostrea
         }
 
         auto opcode = byte_file.program_code[ip];
-        auto length = instruction_length(opcode);
-
-        if (length == 0) {
-            diagnostics::push_error_diagnostic("Unknown or zero-length opcode", ip);
-            return;
-        }
+        auto length = instruction_length(byte_file, ip);
 
         if (ip + length > byte_file.program_code.size()) {
             diagnostics::push_error_diagnostic("Not enough bytes for instruction", ip);
             return;
         }
 
-        make_idiom(ip, length);
+        idiom_occurrences.emplace_back(ip, 0);
 
         if (has_next(opcode) && !is_call(opcode)) {
             size_t address = ip + length;
@@ -258,14 +160,7 @@ void lamar::IdiomAnalyzer::analyze(const lamar::ByteFile &byte_file, std::ostrea
                 continue;
             }
 
-            auto next_opcode = byte_file.program_code[address];
-            auto next_length = instruction_length(next_opcode);
-
-            if (next_length == 0) {
-                diagnostics::push_error_diagnostic("Unknown or zero-length opcode", address);
-                ip += length;
-                continue;
-            }
+            auto next_length = instruction_length(byte_file, address);
 
             if (address + next_length > byte_file.program_code.size()) {
                 diagnostics::push_error_diagnostic("Not enough bytes for instruction", address);
@@ -274,7 +169,7 @@ void lamar::IdiomAnalyzer::analyze(const lamar::ByteFile &byte_file, std::ostrea
             }
 
             if (reachable[address] && !jump_targets[address]) {
-                make_idiom(ip, length + next_length);
+                idiom_occurrences.emplace_back(MARK_NEXT_IDIOM(ip), 0);
             }
         }
 
@@ -286,26 +181,77 @@ void lamar::IdiomAnalyzer::analyze(const lamar::ByteFile &byte_file, std::ostrea
         return;
     }
 
+    auto idiom_length = [&](Idiom idiom) -> uint32_t {
+        auto base = instruction_length(byte_file, IDIOM_OFFSET(idiom));
 
-    std::sort(idiom_occurrences.begin(), idiom_occurrences.end(), std::less<Idiom>());
+        if (HAS_NEXT_IDIOM(idiom)) {
+            auto next_length = instruction_length(byte_file, IDIOM_OFFSET(idiom) + base);
+            return base + next_length;
+        }
 
-    std::vector<std::pair<Idiom, uint32_t>> sorted_idioms;
+        return base;
+    };
 
-    for(const auto &idiom: idiom_occurrences) {
-        if (!sorted_idioms.empty() &&
-                sorted_idioms.back().first == idiom) {
-            sorted_idioms.back().second++;
+    auto cmp_idioms = [&](const auto lhs, const auto rhs) -> int {
+        auto lhs_length = idiom_length(lhs);
+        auto rhs_length = idiom_length(rhs);
+
+        if (lhs_length != rhs_length) {
+            return lhs_length - rhs_length;
+        }
+
+        auto lhs_begin = byte_file.program_code.data() + IDIOM_OFFSET(lhs);
+        auto rhs_begin = byte_file.program_code.data() + IDIOM_OFFSET(rhs);
+
+        return std::memcmp(lhs_begin, rhs_begin, lhs_length);
+    };
+
+    auto print_idiom = [&](Idiom idiom) {
+        disassembler_.disassemble_instruction(byte_file, output, IDIOM_OFFSET(idiom));
+        if (HAS_NEXT_IDIOM(idiom)) {
+            disassembler_.disassemble_instruction(
+                    byte_file,
+                    output,
+                    IDIOM_OFFSET(idiom) + instruction_length(byte_file, IDIOM_OFFSET(idiom))
+            );
+        }
+    };
+
+
+    std::sort(
+            idiom_occurrences.begin(), idiom_occurrences.end(),
+            [&](const auto &a, const auto &b) -> bool {
+                auto lhs = a.first;
+                auto rhs = b.first;
+
+                return cmp_idioms(lhs, rhs) < 0;
+            }
+    );
+
+    auto inserter = idiom_occurrences.begin();
+
+    for (auto &idiom_occurrence: idiom_occurrences) {
+        if (cmp_idioms(idiom_occurrence.first, inserter->first) == 0) {
+            inserter->second++;
         } else {
-            sorted_idioms.emplace_back(idiom, 1);
+            inserter++;
+            *inserter = idiom_occurrence;
+            inserter->second++;
         }
     }
 
-    std::sort(sorted_idioms.begin(), sorted_idioms.end(),
-              [](const auto &a, const auto &b) { return a.second > b.second; });
+    idiom_occurrences.erase(inserter + 1, idiom_occurrences.end());
+    std::sort(
+            idiom_occurrences.begin(), idiom_occurrences.end(),
+            [&](const auto &a, const auto &b) -> bool {
+                return a.second > b.second;
+            }
+    );
 
-    for (auto &[idiom, occurrences]: sorted_idioms) {
+
+    for (auto &[idiom, occurrences]: idiom_occurrences) {
         output << "Occurrences: " << occurrences << "\n";
-        disassembler_.disassemble_range(idiom.get_offset(), idiom.get_length(), byte_file, output);
+        print_idiom(idiom);
         output << "\n\n";
 
     }
@@ -313,79 +259,3 @@ void lamar::IdiomAnalyzer::analyze(const lamar::ByteFile &byte_file, std::ostrea
 
 lamar::IdiomAnalyzer::IdiomAnalyzer(const lamar::Disassembler &disassembler) : disassembler_(disassembler) {}
 
-
-lamar::Idiom::Idiom(const lamar::Idiom &other) noexcept:
-        offset_(other.offset_),
-        length_(other.length_),
-        byte_file_(other.byte_file_) {}
-
-lamar::Idiom::Idiom(lamar::Idiom &&other) noexcept:
-        offset_(other.offset_),
-        length_(other.length_),
-        byte_file_(other.byte_file_) {}
-
-lamar::Idiom &lamar::Idiom::operator=(const lamar::Idiom &other) noexcept {
-    if (this == &other) {
-        return *this;
-    }
-
-    if (&byte_file_ != &other.byte_file_) {
-        return *this;
-    }
-
-    offset_ = other.offset_;
-    length_ = other.length_;
-    return *this;
-}
-
-lamar::Idiom &lamar::Idiom::operator=(lamar::Idiom &&other) noexcept {
-    if (this == &other) {
-        return *this;
-    }
-
-    if (&byte_file_ != &other.byte_file_) {
-        return *this;
-    }
-
-    offset_ = other.offset_;
-    length_ = other.length_;
-    return *this;
-}
-
-bool lamar::Idiom::operator==(const lamar::Idiom &other) const noexcept {
-    if (length_ != other.length_) {
-        return false;
-    }
-
-    if (offset_ + length_ > byte_file_.program_code.size() ||
-        other.offset_ + other.length_ > other.byte_file_.program_code.size()) {
-        return false;
-    }
-
-    const auto *lhs = byte_file_.program_code.data() + offset_;
-    const auto *rhs = other.byte_file_.program_code.data() + other.offset_;
-
-    return std::memcmp(lhs, rhs, length_) == 0;
-}
-
-uint32_t lamar::Idiom::get_offset() const {
-    return offset_;
-}
-
-uint32_t lamar::Idiom::get_length() const {
-    return length_;
-}
-
-lamar::Idiom::Idiom(uint32_t offset, uint32_t length, const lamar::ByteFile &byte_file)
-        : offset_(offset), length_(length), byte_file_(byte_file) {}
-
-bool std::less<lamar::Idiom>::operator()(const lamar::Idiom &lhs, const lamar::Idiom &rhs) const noexcept {
-    if (lhs.length_ != rhs.length_) {
-        return lhs.length_ < rhs.length_;
-    }
-
-    const auto *lhsP = lhs.byte_file_.program_code.data() + lhs.offset_;
-    const auto *rhsP = rhs.byte_file_.program_code.data() + rhs.offset_;
-
-    return std::memcmp(lhsP, rhsP, lhs.length_) < 0;
-}

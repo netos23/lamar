@@ -13,7 +13,7 @@ namespace lamar {
 
     public:
         void disassemble(const ByteFile &byte_file, std::ostream &output) const;
-        void disassemble_range(uint32_t offset, uint32_t length, const ByteFile &byte_file, std::ostream &output) const;
+        uint32_t disassemble_instruction(const ByteFile &byte_file, std::ostream &output, uint32_t offset) const;
     };
 }
 

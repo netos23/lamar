@@ -7,47 +7,30 @@
 
 #include <functional>
 #include <ostream>
+#include <fstream>
 #include "bytecode.hpp"
 #include "disassembler.hpp"
 
+#define HAS_NEXT_IDIOM(idiom) (((idiom) & 0x80000000u) != 0u)
+#define IDIOM_OFFSET(idiom) ((idiom) & 0x7FFFFFFFu)
+#define MARK_NEXT_IDIOM(idiom) ((idiom) | 0x80000000u)
+
+
 namespace lamar {
-    class Idiom {
-    public:
-        Idiom(uint32_t offset, uint32_t length, const ByteFile &byte_file);
-
-        Idiom(const Idiom &other) noexcept;
-        Idiom(Idiom &&other) noexcept;
-        bool operator==(const Idiom &other) const noexcept;
-        Idiom &operator=(const Idiom &other) noexcept;
-        Idiom &operator=(Idiom &&other) noexcept;
-
-        [[nodiscard]] uint32_t get_offset() const;
-
-        [[nodiscard]] uint32_t get_length() const;
-
-    private:
-        uint32_t offset_;
-        uint32_t length_;
-        const ByteFile &byte_file_;
-        friend struct std::less<lamar::Idiom>;
-    };
+    typedef uint32_t Idiom;
 
 
     class IdiomAnalyzer {
     public:
         explicit IdiomAnalyzer(const Disassembler &disassembler);
 
-        void analyze(const ByteFile &byte_file, std::ostream &output) const;
+        void analyze(const ByteFile &byte_file, std::ostream &output);
+
+        uint32_t instruction_length(const lamar::ByteFile &byte_file, uint32_t offset);
 
     private:
-       Disassembler disassembler_;
-    };
-}
-
-namespace std {
-    template<>
-    struct less<lamar::Idiom> {
-        bool operator()(const lamar::Idiom &lhs, const lamar::Idiom &rhs) const noexcept;
+        std::ofstream ofs_{"/dev/null", std::ofstream::out | std::ofstream::app};
+        Disassembler disassembler_;
     };
 }
 

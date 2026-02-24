@@ -3,6 +3,7 @@
 //
 
 #include "disassembler.hpp"
+#include "diagnostics.hpp"
 
 #include <cstddef>
 #include <cstring>
@@ -14,7 +15,7 @@
 
 int32_t read_int32(const uint8_t *&ip, const uint8_t *end) {
     if (end - ip < static_cast<std::ptrdiff_t>(sizeof(int32_t))) {
-        throw std::runtime_error("Unexpected end of bytecode while reading int32");
+        lamar::diagnostics::push_error_diagnostic("Unexpected end of bytecode while reading int32", end - ip);
     }
 
     int32_t val = 0;
@@ -25,7 +26,7 @@ int32_t read_int32(const uint8_t *&ip, const uint8_t *end) {
 
 std::string_view read_string(const lamar::ByteFile &file, int32_t offset) {
     if (offset < 0 || static_cast<uint32_t>(offset) >= file.string_table_size) {
-        throw std::runtime_error("Invalid string offset in bytecode");
+        lamar::diagnostics::push_error_diagnostic("Invalid string offset in bytecode", offset);
     }
 
     const char *start = file.string_table.get() + offset;
@@ -57,7 +58,7 @@ uint32_t disassemble_instruction_impl(
 
     const auto *inst_start = base + offset;
     if (inst_start >= end) {
-        throw std::runtime_error("Unexpected end of bytecode while reading opcode");
+        lamar::diagnostics::push_error_diagnostic("Unexpected end of bytecode while reading opcode", offset);
     }
 
     const uint8_t *ip = inst_start;
@@ -71,7 +72,7 @@ uint32_t disassemble_instruction_impl(
     switch (h) {
         case 0x0: { // BINOP
             if (l == 0 || l > 0x0D) {
-                throw std::runtime_error("Invalid BINOP opcode");
+                lamar::diagnostics::push_error_diagnostic("Invalid BINOP opcode", ip - base);
             }
             output << "BINOP\t" << ops[l - 1];
             break;
@@ -116,7 +117,7 @@ uint32_t disassemble_instruction_impl(
                     output << "ELEM";
                     break;
                 default:
-                    throw std::runtime_error("Invalid opcode in 0x1x group");
+                    lamar::diagnostics::push_error_diagnostic("Invalid opcode in 0x1x group", ip - base);
             }
             break;
         }
@@ -125,7 +126,7 @@ uint32_t disassemble_instruction_impl(
         case 0x4: {
             const auto group = static_cast<size_t>(h - 0x2);
             if (group >= std::size(lds)) {
-                throw std::runtime_error("Invalid LD/LDA/ST group");
+                lamar::diagnostics::push_error_diagnostic("Invalid LD/LDA/ST group", ip - base);
             }
             output << lds[group] << '\t';
             switch (l) {
@@ -142,7 +143,7 @@ uint32_t disassemble_instruction_impl(
                     output << 'C' << '(' << read_int32(ip, end) << ')';
                     break;
                 default:
-                    throw std::runtime_error("Invalid LD/LDA/ST opcode suffix");
+                    lamar::diagnostics::push_error_diagnostic("Invalid LD/LDA/ST opcode suffix", ip - base);
             }
             break;
         }
@@ -168,8 +169,10 @@ uint32_t disassemble_instruction_impl(
                     const int32_t n = read_int32(ip, end);
                     for (int i = 0; i < n; ++i) {
                         if (ip >= end) {
-                            throw std::runtime_error(
-                                    "Unexpected end of bytecode while reading closure captured variable type");
+                            lamar::diagnostics::push_error_diagnostic(
+                                    "Unexpected end of bytecode while reading closure captured variable type",
+                                    ip - base
+                            );
                         }
                         uint8_t scope = *ip++;
                         switch (scope) {
@@ -186,7 +189,10 @@ uint32_t disassemble_instruction_impl(
                                 output << "C(" << std::dec << read_int32(ip, end) << ')';
                                 break;
                             default:
-                                throw std::runtime_error("Invalid closure captured variable type");
+                                lamar::diagnostics::push_error_diagnostic(
+                                        "Invalid closure captured variable type",
+                                        ip - base
+                                );
                         }
                     }
                     break;
@@ -212,13 +218,13 @@ uint32_t disassemble_instruction_impl(
                     output << "LINE\t" << std::dec << read_int32(ip, end);
                     break;
                 default:
-                    throw std::runtime_error("Invalid opcode in 0x5x group");
+                    lamar::diagnostics::push_error_diagnostic("Invalid opcode in 0x5x group", ip - base);
             }
             break;
         }
         case 0x6: {
             if (l >= std::size(pats)) {
-                throw std::runtime_error("Invalid pattern opcode");
+                lamar::diagnostics::push_error_diagnostic("Invalid pattern opcode", ip - base);
             }
             output << "PATT\t" << pats[l];
             break;
@@ -241,7 +247,7 @@ uint32_t disassemble_instruction_impl(
                     output << "CALL\tBarray\t" << std::dec << read_int32(ip, end);
                     break;
                 default:
-                    throw std::runtime_error("Invalid builtin call opcode");
+                    lamar::diagnostics::push_error_diagnostic("Invalid builtin call opcode", ip - base);
             }
             break;
         }
@@ -253,7 +259,7 @@ uint32_t disassemble_instruction_impl(
             return static_cast<uint32_t>(ip - inst_start);
         }
         default:
-            throw std::runtime_error("Unknown opcode group while disassembling");
+            lamar::diagnostics::push_error_diagnostic("Unknown opcode group while disassembling", ip - base);
     }
 
     output << '\n';
@@ -286,7 +292,7 @@ void lamar::Disassembler::disassemble(const ByteFile &byte_file, std::ostream &o
         bool hit_end = false;
         const uint32_t consumed = disassemble_instruction_impl(byte_file, output, cursor, base, range_end, hit_end);
         if (consumed == 0) {
-            throw std::runtime_error("Decoded instruction with zero length");
+            diagnostics::push_error_diagnostic("Decoded instruction with zero length", cursor);
         }
         cursor += consumed;
         if (hit_end) {

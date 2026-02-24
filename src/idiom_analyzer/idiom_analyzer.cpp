@@ -73,6 +73,12 @@ uint32_t read_uint(const lamar::ByteFile &byte_file, uint32_t offset) {
 
 
 void lamar::IdiomAnalyzer::analyze(const lamar::ByteFile &byte_file, std::ostream &output) {
+    if(byte_file.program_code.size()  >= (1u << 31)) {
+        diagnostics::push_error_diagnostic("Program code size exceeds 2GB limit", 0);
+        return;
+    }
+
+
     std::vector<bool> reachable(byte_file.program_code.size(), false);
     std::vector<bool> jump_targets(byte_file.program_code.size(), false);
 

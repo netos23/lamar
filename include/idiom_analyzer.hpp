@@ -11,11 +11,6 @@
 #include "bytecode.hpp"
 #include "disassembler.hpp"
 
-#define HAS_NEXT_IDIOM(idiom) (((idiom) & 0x80000000u) != 0u)
-#define IDIOM_OFFSET(idiom) ((idiom) & 0x7FFFFFFFu)
-#define MARK_NEXT_IDIOM(idiom) ((idiom) | 0x80000000u)
-
-
 namespace lamar {
     typedef uint32_t Idiom;
 

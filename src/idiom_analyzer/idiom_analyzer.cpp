@@ -138,8 +138,8 @@ void lamar::IdiomAnalyzer::analyze(const lamar::ByteFile &byte_file, std::ostrea
         }
     }
 
-    std::vector<Idiom> one_idiom_occurrences;
-    std::vector<Idiom> two_idiom_occurrences;
+    std::vector<std::pair<Idiom, uint32_t>> one_idiom_occurrences;
+    std::vector<std::pair<Idiom, uint32_t>> two_idiom_occurrences;
 
     uint32_t ip = 0;
     while (ip < byte_file.program_code.size()) {
@@ -156,7 +156,7 @@ void lamar::IdiomAnalyzer::analyze(const lamar::ByteFile &byte_file, std::ostrea
             return;
         }
 
-        one_idiom_occurrences.push_back(ip);
+        one_idiom_occurrences.emplace_back(ip, 0);
 
         if (has_next(opcode) && !is_call(opcode)) {
             size_t address = ip + length;
@@ -176,122 +176,111 @@ void lamar::IdiomAnalyzer::analyze(const lamar::ByteFile &byte_file, std::ostrea
             }
 
             if (reachable[address] && !jump_targets[address]) {
-                two_idiom_occurrences.push_back(MARK_NEXT_IDIOM(ip));
+                two_idiom_occurrences.emplace_back(ip, 0);
             }
         }
 
         ip += length;
     }
 
-    if (one_idiom_occurrences.empty() && two_idiom_occurrences.empty()) {
+    if (one_idiom_occurrences.empty() || two_idiom_occurrences.empty()) {
         output << "No idioms found." << std::endl;
         return;
     }
 
-    auto idiom_length = [&](Idiom idiom) -> uint32_t {
-        auto base = instruction_length(byte_file, IDIOM_OFFSET(idiom));
+    auto idiom_length = [&](Idiom idiom, bool has_next) -> uint32_t {
+        auto base = instruction_length(byte_file, idiom);
 
-        if (HAS_NEXT_IDIOM(idiom)) {
-            auto next_length = instruction_length(byte_file, IDIOM_OFFSET(idiom) + base);
+        if (has_next) {
+            auto next_length = instruction_length(byte_file, idiom + base);
             return base + next_length;
         }
 
         return base;
     };
 
-    auto cmp_idioms = [&](const auto lhs, const auto rhs) -> int {
-        auto lhs_length = idiom_length(lhs);
-        auto rhs_length = idiom_length(rhs);
+    auto cmp_idioms = [&](const auto lhs, const auto rhs, bool has_next) -> int {
+        auto lhs_length = idiom_length(lhs, has_next);
+        auto rhs_length = idiom_length(rhs, has_next);
 
         if (lhs_length != rhs_length) {
             return lhs_length - rhs_length;
         }
 
-        auto lhs_begin = byte_file.program_code.data() + IDIOM_OFFSET(lhs);
-        auto rhs_begin = byte_file.program_code.data() + IDIOM_OFFSET(rhs);
+        auto lhs_begin = byte_file.program_code.data() + lhs;
+        auto rhs_begin = byte_file.program_code.data() + rhs;
 
         return std::memcmp(lhs_begin, rhs_begin, lhs_length);
     };
 
-    auto print_idiom = [&](Idiom idiom) {
-        disassembler_.disassemble_instruction(byte_file, output, IDIOM_OFFSET(idiom));
-        if (HAS_NEXT_IDIOM(idiom)) {
+    auto print_idiom = [&](Idiom idiom, bool has_next) {
+        disassembler_.disassemble_instruction(byte_file, output, idiom);
+        if (has_next) {
             disassembler_.disassemble_instruction(
                     byte_file,
                     output,
-                    IDIOM_OFFSET(idiom) + instruction_length(byte_file, IDIOM_OFFSET(idiom))
+                    idiom + instruction_length(byte_file, idiom)
             );
         }
     };
 
-    auto print_idiom_with_count = [&](std::pair<Idiom, uint32_t> &idiom) {
+    auto print_idiom_with_count = [&](std::pair<Idiom, uint32_t> &idiom, bool has_next) -> void {
         output << "Occurrences: " << idiom.second << "\n";
-        print_idiom(idiom.first);
+        print_idiom(idiom.first, has_next);
         output << "\n\n";
     };
 
+    auto count_occurrences = [&](std::vector<std::pair<Idiom, uint32_t>> &idiom_occurrences, bool has_next) -> void {
+        std::sort(
+                idiom_occurrences.begin(), idiom_occurrences.end(),
+                [&](const auto &a, const auto &b) -> bool {
+                    auto lhs = a.first;
+                    auto rhs = b.first;
 
-    std::sort(
-            one_idiom_occurrences.begin(), one_idiom_occurrences.end(),
-            [&](const auto lhs, const auto rhs) -> bool {
-                return cmp_idioms(lhs, rhs) < 0;
-            }
-    );
+                    return cmp_idioms(lhs, rhs, has_next) < 0;
+                }
+        );
 
-    std::sort(
-            two_idiom_occurrences.begin(), two_idiom_occurrences.end(),
-            [&](const auto lhs, const auto rhs) -> bool {
-                return cmp_idioms(lhs, rhs) < 0;
-            }
-    );
+        auto inserter = idiom_occurrences.begin();
 
-    auto count_idioms = [&](const std::vector<Idiom> &idioms) -> std::vector<std::pair<Idiom, uint32_t>> {
-        std::vector<std::pair<Idiom, uint32_t>> idiom_occurrences;
-        idiom_occurrences.emplace_back(idioms.front(), 0);
-
-        for (auto &idiom: idioms) {
-            auto &current = idiom_occurrences.back();
-            if (cmp_idioms(current.first, idiom) == 0) {
-                current.second++;
+        for (auto &idiom_occurrence: idiom_occurrences) {
+            if (cmp_idioms(idiom_occurrence.first, inserter->first, has_next) == 0) {
+                inserter->second++;
             } else {
-                idiom_occurrences.emplace_back(idiom, 1);
+                inserter++;
+                *inserter = idiom_occurrence;
+                inserter->second++;
             }
         }
 
+        idiom_occurrences.erase(inserter + 1, idiom_occurrences.end());
         std::sort(
                 idiom_occurrences.begin(), idiom_occurrences.end(),
                 [&](const auto &a, const auto &b) -> bool {
                     return a.second > b.second;
                 }
         );
-
-        return idiom_occurrences;
     };
 
+    count_occurrences(one_idiom_occurrences, false);
+    count_occurrences(two_idiom_occurrences, true);
 
-    auto one_idioms_count = count_idioms(one_idiom_occurrences);
-    one_idiom_occurrences.clear();
-
-
-    auto two_idioms_count = count_idioms(two_idiom_occurrences);
-    two_idiom_occurrences.clear();
-
-    auto lhs = one_idioms_count.begin();
-    auto rhs = two_idioms_count.begin();
+    auto lhs = one_idiom_occurrences.begin();
+    auto rhs = two_idiom_occurrences.begin();
 
 
-    while (lhs != one_idioms_count.end() && rhs != two_idioms_count.end()) {
-        print_idiom_with_count(lhs->second > rhs->second ? *(lhs++) : *(rhs++));
+    while (lhs != one_idiom_occurrences.end() && rhs != two_idiom_occurrences.end()) {
+        auto take_one = lhs->second > rhs->second;
+        print_idiom_with_count(take_one ? *(lhs++) : *(rhs++), !take_one);
     }
 
-    while (lhs != one_idioms_count.end()) {
-        print_idiom_with_count(*(lhs++));
+    while (lhs != one_idiom_occurrences.end()) {
+        print_idiom_with_count(*(lhs++), false);
     }
 
-    while (rhs != two_idioms_count.end()) {
-        print_idiom_with_count(*(rhs++));
+    while (rhs != two_idiom_occurrences.end()) {
+        print_idiom_with_count(*(rhs++), true);
     }
 }
 
 lamar::IdiomAnalyzer::IdiomAnalyzer(const lamar::Disassembler &disassembler) : disassembler_(disassembler) {}
-

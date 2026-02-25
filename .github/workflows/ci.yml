@@ -48,7 +48,7 @@ jobs:
         run: cmake -S . -B cmake-build-release -DCMAKE_BUILD_TYPE=Release
 
       - name: Build lamar, byterun, and analyzer (Release)
-        run: cmake --build cmake-build-release --config Release --target lamar byterun lamar_analyzer -- -j2
+        run: cmake --build cmake-build-release --config Release --target lamar byterun lamar_analyzer lamar_disassembler -- -j2
 
       - name: Build tests
         run: |

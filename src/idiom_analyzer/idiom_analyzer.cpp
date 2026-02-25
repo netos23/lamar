@@ -139,7 +139,9 @@ void lamar::IdiomAnalyzer::analyze(const lamar::ByteFile &byte_file, std::ostrea
     }
 
     std::vector<std::pair<Idiom, uint32_t>> one_idiom_occurrences;
+    one_idiom_occurrences.reserve(byte_file.program_code.size());
     std::vector<std::pair<Idiom, uint32_t>> two_idiom_occurrences;
+    two_idiom_occurrences.reserve(byte_file.program_code.size());
 
     uint32_t ip = 0;
     while (ip < byte_file.program_code.size()) {

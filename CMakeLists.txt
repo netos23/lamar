@@ -13,6 +13,7 @@ set(COMMON_SOURCES
         include/bytecode.hpp
         include/diagnostics.hpp
         include/disassembler.hpp
+        include/utils.hpp
 
         include/loader.hpp
         include/runtime.hpp
@@ -22,15 +23,19 @@ set(COMMON_SOURCES
         src/disassembler/disassembler.cpp
 
         src/loader/loader.cpp
+        src/common/utils.cpp
+
 )
 set(LAMAR_SOURCES
         include/interpreter.hpp
         include/value.hpp
         include/frame.hpp
+        include/verifier.hpp
 
         src/interpreter/interpreter.cpp
         src/interpreter/value.cpp
         src/interpreter/frame.cpp
+        src/verifier/verifier.cpp
 
         src/driver.cpp
 )

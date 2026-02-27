@@ -17,6 +17,10 @@
 #include "value.hpp"
 #include "frame.hpp"
 
+#ifndef ENABLE_VERIFICATION
+#define ENABLE_VERIFICATION
+#endif
+
 #define MAX_STACK_SIZE (1 << 17)
 #define MAX_CALL_STACK_SIZE (1 << 17)
 
@@ -24,7 +28,7 @@ namespace lamar {
 
     class Interpreter {
     public:
-        explicit Interpreter(ByteFile &&byteFile);
+        Interpreter(ByteFile &&byte_file, auint *stack, Frame *call_stack);
 
         void interpret();
 
@@ -43,6 +47,8 @@ namespace lamar {
             auto size = byte_file_.global_area_size + 2;
             __gc_stack_top = stack_;
             __gc_stack_bottom = stack_ + size;
+
+            std::memset(stack_, 0, size * sizeof(auint));
 
             // main frame
             call_stack_[++fp] = Frame(
@@ -87,7 +93,7 @@ namespace lamar {
         }
 
         uint32_t read_uint() {
-#ifndef DISABLE_RUNTIME_CHECKS
+#if !defined(DISABLE_RUNTIME_CHECKS) && !defined(ENABLE_VERIFICATION)
             if (ip + sizeof(uint32_t) > byte_file_.program_code.size()) {
                 push_error_diagnostic("Index out of bounds, while read constant from code");
             }
@@ -101,7 +107,7 @@ namespace lamar {
         }
 
         uint8_t read_uint8() {
-#ifndef DISABLE_RUNTIME_CHECKS
+#if !defined(DISABLE_RUNTIME_CHECKS) && !defined(ENABLE_VERIFICATION)
             if (ip + sizeof(uint8_t) > byte_file_.program_code.size()) {
                 push_error_diagnostic("Index out of bounds, while read constant from code");
             }
@@ -317,7 +323,7 @@ namespace lamar {
         void interpret_string() {
             auto index = read_uint();
 
-#ifndef DISABLE_RUNTIME_CHECKS
+#if !defined(DISABLE_RUNTIME_CHECKS) && !defined(ENABLE_VERIFICATION)
             if (index >= byte_file_.string_table_size) {
                 push_error_diagnostic("String index out of bounds");
             }
@@ -336,7 +342,9 @@ namespace lamar {
             if (size > stack_size()) {
                 push_error_diagnostic("Not enough elements on stack to create s-expression");
             }
+#endif
 
+#if !defined(DISABLE_RUNTIME_CHECKS) && !defined(ENABLE_VERIFICATION)
             if (tag >= byte_file_.string_table_size) {
                 push_error_diagnostic("String index out of bounds");
             }
@@ -404,7 +412,7 @@ namespace lamar {
         void interpret_jmp() {
             auto location = read_uint();
 
-#ifndef DISABLE_RUNTIME_CHECKS
+#if !defined(DISABLE_RUNTIME_CHECKS) && !defined(ENABLE_VERIFICATION)
             if (byte_file_.program_code.size() <= location) {
                 push_error_diagnostic("Jump out of bounds");
             }
@@ -545,7 +553,7 @@ namespace lamar {
         void interpret_conditional_jump(bool jump_on_true) {
             auto location = read_uint();
 
-#ifndef DISABLE_RUNTIME_CHECKS
+#if !defined(DISABLE_RUNTIME_CHECKS) && !defined(ENABLE_VERIFICATION)
             if (byte_file_.program_code.size() <= location) {
                 push_error_diagnostic("Jump out of bounds");
             }
@@ -613,7 +621,7 @@ namespace lamar {
         void interpret_closure() {
             auto address = read_uint();
 
-#ifndef DISABLE_RUNTIME_CHECKS
+#if !defined(DISABLE_RUNTIME_CHECKS) && !defined(ENABLE_VERIFICATION)
             if (byte_file_.program_code.size() <= address) {
                 push_error_diagnostic("Closure address out of bounds");
             }
@@ -664,7 +672,7 @@ namespace lamar {
 
             auto closure_address = static_cast<int32_t>(captured[0]);
 
-#ifndef DISABLE_RUNTIME_CHECKS
+#if !defined(DISABLE_RUNTIME_CHECKS) && !defined(ENABLE_VERIFICATION)
             if (byte_file_.program_code.size() <= closure_address) {
                 push_error_diagnostic("Closure address out of bounds");
             }
@@ -673,7 +681,9 @@ namespace lamar {
             if (instr != BEGIN && instr != CBEGIN) {
                 push_error_diagnostic("Closure entry must be begin or cbegin");
             }
+#endif
 
+#ifndef DISABLE_RUNTIME_CHECKS
             if (fp + 1 >= MAX_CALL_STACK_SIZE) {
                 push_error_diagnostic("Call stack overflow");
             }
@@ -694,7 +704,7 @@ namespace lamar {
         void interpret_call() {
             auto proc_address = read_uint();
 
-#ifndef DISABLE_RUNTIME_CHECKS
+#if !defined(DISABLE_RUNTIME_CHECKS) && !defined(ENABLE_VERIFICATION)
             if (byte_file_.program_code.size() <= proc_address) {
                 push_error_diagnostic("Closure address out of bounds");
             }
@@ -703,7 +713,9 @@ namespace lamar {
             if (instr != BEGIN && instr != CBEGIN) {
                 push_error_diagnostic("Procedure entry must be begin or cbegin");
             }
+#endif
 
+#ifndef DISABLE_RUNTIME_CHECKS
             if (fp + 1 >= MAX_CALL_STACK_SIZE) {
                 push_error_diagnostic("Call stack overflow");
             }
@@ -726,7 +738,7 @@ namespace lamar {
             auto tag = read_uint();
             auto size = read_uint();
 
-#ifndef DISABLE_RUNTIME_CHECKS
+#if !defined(DISABLE_RUNTIME_CHECKS) && !defined(ENABLE_VERIFICATION)
             if (tag >= byte_file_.string_table_size) {
                 push_error_diagnostic("String index out of bounds");
             }
@@ -941,8 +953,8 @@ namespace lamar {
 
         uint32_t ip = 0;
         uint32_t fp = -1;
-        auint stack_[MAX_STACK_SIZE]{};
-        Frame call_stack_[MAX_CALL_STACK_SIZE]{};
+        auint *stack_;
+        Frame *call_stack_;
         ByteFile byte_file_;
     };
 

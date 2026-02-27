@@ -4,6 +4,10 @@
 #include "loader.hpp"
 #include "disassembler.hpp"
 #include "interpreter.hpp"
+#include "verifier.hpp"
+
+auint stack[MAX_STACK_SIZE]{};
+lamar::Frame call_stack[MAX_CALL_STACK_SIZE]{};
 
 int main(int argc, char **argv) {
     auto print_usage = []() {
@@ -34,9 +38,18 @@ int main(int argc, char **argv) {
     lamar::Loader loader(is, input_path);
     auto file = loader.read_byte_file();
 
-    lamar::Interpreter interpreter{std::move(file)};
-    interpreter.interpret();
 
+
+#ifdef ENABLE_VERIFICATION
+    const lamar::Disassembler &disassembler = lamar::Disassembler{};
+    disassembler.disassemble(file, std::cout);
+
+    lamar::Verifier verifier(file, disassembler, stack, call_stack);
+    verifier.verify();
+#endif
+
+    lamar::Interpreter interpreter{std::move(file), stack, call_stack};
+    interpreter.interpret();
 
     return 0;
 }

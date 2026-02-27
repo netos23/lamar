@@ -7,8 +7,6 @@
 #include <iostream>
 
 
-lamar::Interpreter::Interpreter(lamar::ByteFile &&byteFile) : byte_file_(std::move(byteFile)) {}
-
 void lamar::Interpreter::interpret() {
     __init();
     init_stack();
@@ -204,6 +202,11 @@ void lamar::Interpreter::interpret() {
 
     __shutdown();
 }
+
+lamar::Interpreter::Interpreter(lamar::ByteFile &&byte_file, auint *stack, lamar::Frame *call_stack)
+        : stack_(stack),
+          call_stack_(call_stack),
+          byte_file_(std::move(byte_file)) {}
 
 
 

@@ -99,13 +99,42 @@ test/run_analyzer_perf.sh
 
 При необходимости на ARM/Mac можно воспользоваться контейнером из `docker/README.MD`.
 
+## Вспомогательные цели и режимы
+
+### Сборка анализатора и дизассемблера
+Сборки `lamar_analyzer` и `lamar_disassembler` используют те же исходники и рантайм, что и основной интерпретатор.
+Чтобы подготовить бинарники для анализа идиом и дизассемблирования, запустите:
+
+```bash
+cmake --build cmake-build-release --target lamar_analyzer
+cmake --build cmake-build-release --target lamar_disassembler
+```
+
+`lamar_analyzer` нужен для `test/run_analyzer_perf.sh`, а `lamar_disassembler` — для `test/run_bc_compare.sh` и собственных сценариев дизассемблирования.
+
+### Верификация и измерения времени
+
+`ENABLE_VERIFICATION` включает вызов `lamar::Verifier`, а `MESHURE_TIME` выводит измерения времени выполнения (верификация — в секундах, интерпретация — в секундах).
+Все макросы задаются компилятору вручную, например:
+
+```bash
+cmake -S . -B cmake-build-release -DCMAKE_BUILD_TYPE=Release \
+  -DCMAKE_CXX_FLAGS="-DENABLE_VERIFICATION -DMESHURE_TIME -DDISABLE_RUNTIME_CHECKS"
+cmake --build cmake-build-release
+```
+
+### Итог
+- `DISABLE_RUNTIME_CHECKS` убирает все проверки в `Interpreter`, ускоряя обход байткода, но делает ошибки на входе фатальными.
+- `ENABLE_VERIFICATION` сначала запускает `lamar::Verifier`, чтобы поймать ошибки  до исполнения.
+- `MESHURE_TIME` полезен на этапе сравнения оптимизаций и показывает, сколько времени уходит на верификацию и интерпретацию подряд.
 
 ### Сравнение с другими интерпретаторами
 
-| Интерпретатор | Время выполнения (сек) | Score~ |
-|---------------|-----------------------|--------|
-| lamar*        | 114.84                | -      |
-| lamac -s      | 171.67                | +50%   |
-| lamac -i      | 574.08                | +234%  |
+| Интерпретатор   | Время выполнения (сек) | Score~ |
+|-----------------|------------------------|--------|
+| lamar-verified* | 101.84                 | -      |
+| lamar*          | 114.84                 | +12%   |
+| lamac -s        | 171.67                 | +50%   |
+| lamac -i        | 574.08                 | +234%  |
 
-* Mac OS m1 16GB RAM with Rosseta 2, другие измерения на Github Actions (Linux, 4 vCPU, 16GB RAM).
+\* Mac OS m1 16GB RAM with Rosseta 2, другие измерения на Github Actions (Linux, 4 vCPU, 16GB RAM).

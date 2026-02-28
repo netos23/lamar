@@ -18,10 +18,6 @@
 #include "frame.hpp"
 #include "utils.hpp"
 
-#ifndef ENABLE_VERIFICATION
-#define ENABLE_VERIFICATION
-#endif
-
 namespace lamar {
 
     class Interpreter {
@@ -60,7 +56,7 @@ namespace lamar {
         }
 
         void push(Value v) {
-#ifndef DISABLE_RUNTIME_CHECKS
+#if !defined(DISABLE_RUNTIME_CHECKS) && !defined(ENABLE_VERIFICATION)
             if (stack_size() + 1 >= MAX_STACK_SIZE) {
                 push_error_diagnostic("Stack overflow");
 
@@ -71,7 +67,7 @@ namespace lamar {
         }
 
         Value pop() {
-#ifndef DISABLE_RUNTIME_CHECKS
+#if !defined(DISABLE_RUNTIME_CHECKS) && !defined(ENABLE_VERIFICATION)
             if (stack_size() <= 0) {
                 push_error_diagnostic("No such element on stack to pop");
             }
@@ -81,7 +77,7 @@ namespace lamar {
         }
 
         Value peek(uint32_t offset = 0) {
-#ifndef DISABLE_RUNTIME_CHECKS
+#if !defined(DISABLE_RUNTIME_CHECKS) && !defined(ENABLE_VERIFICATION)
             if (stack_size() <= 0) {
                 push_error_diagnostic("No such element on stack to peek");
             }
@@ -116,7 +112,7 @@ namespace lamar {
 
         Value get_local(int32_t address) {
             auto &frame = call_stack_[fp];
-#ifndef DISABLE_RUNTIME_CHECKS
+#if !defined(DISABLE_RUNTIME_CHECKS) && !defined(ENABLE_VERIFICATION)
             if (static_cast<uint32_t>(address) >= frame.get_locals_count()) {
                 push_error_diagnostic("Local index out of bounds");
             }
@@ -152,7 +148,7 @@ namespace lamar {
 
         Value get_local_address(int32_t address) {
             auto &frame = call_stack_[fp];
-#ifndef DISABLE_RUNTIME_CHECKS
+#if !defined(DISABLE_RUNTIME_CHECKS) && !defined(ENABLE_VERIFICATION)
             if (static_cast<uint32_t>(address) >= frame.get_locals_count()) {
                 push_error_diagnostic("Local index out of bounds");
             }
@@ -163,7 +159,7 @@ namespace lamar {
 
         Value get_arg_address(int32_t address) {
             auto &frame = call_stack_[fp];
-#ifndef DISABLE_RUNTIME_CHECKS
+#if !defined(DISABLE_RUNTIME_CHECKS) && !defined(ENABLE_VERIFICATION)
             if (address >= frame.get_args_count()) {
                 push_error_diagnostic("Arg index out of bounds");
             }
@@ -192,7 +188,7 @@ namespace lamar {
 
         void set_local(int32_t address, Value &value) {
             auto &frame = call_stack_[fp];
-#ifndef DISABLE_RUNTIME_CHECKS
+#if !defined(DISABLE_RUNTIME_CHECKS) && !defined(ENABLE_VERIFICATION)
             if (static_cast<uint32_t>(address) >= frame.get_locals_count()) {
                 push_error_diagnostic("Local index out of bounds");
             }
@@ -202,7 +198,7 @@ namespace lamar {
 
         void set_arg(int32_t address, Value &value) {
             auto &frame = call_stack_[fp];
-#ifndef DISABLE_RUNTIME_CHECKS
+#if !defined(DISABLE_RUNTIME_CHECKS) && !defined(ENABLE_VERIFICATION)
             if (address >= frame.get_args_count()) {
                 push_error_diagnostic("Arg index out of bounds");
             }
@@ -690,14 +686,14 @@ namespace lamar {
             if (byte_file_.program_code.size() <= closure_address) {
                 push_error_diagnostic("Closure address out of bounds");
             }
+#endif
 
+#ifndef DISABLE_RUNTIME_CHECKS
             auto instr = byte_file_.program_code.at(closure_address);
             if (instr != BEGIN && instr != CBEGIN) {
                 push_error_diagnostic("Closure entry must be begin or cbegin");
             }
-#endif
 
-#ifndef DISABLE_RUNTIME_CHECKS
             if (fp + 1 >= MAX_CALL_STACK_SIZE) {
                 push_error_diagnostic("Call stack overflow");
             }

@@ -52,6 +52,11 @@ void lamar::Verifier::verify_cfg(uint32_t entry_point) {
         }
 
         auto opcode = byte_file_.program_code[offset];
+        if (!is_valid_opcode(opcode)) {
+            diagnostics::push_error_diagnostic("Invalid opcode", offset);
+            return;
+        }
+
         auto length = instruction_length(offset);
         if (offset + length > byte_file_.program_code.size()) {
             diagnostics::push_error_diagnostic("Not enough bytes for instruction", offset);
@@ -163,11 +168,6 @@ void lamar::Verifier::verify_instruction(uint32_t offset) const {
     auto opcode = static_cast<OpCode>(byte_file_.program_code[offset]);
     auto ip = offset + sizeof(OpCode);
 
-    if(!is_valid_opcode(opcode)) {
-        diagnostics::push_error_diagnostic("Invalid opcode", offset);
-        return;
-    }
-
     switch (opcode) {
         case STRING: {
             auto index = read_uint(ip);
@@ -188,6 +188,41 @@ void lamar::Verifier::verify_instruction(uint32_t offset) const {
             break;
         }
 
+        case lamar::OpCode::LD_G:
+        case lamar::OpCode::ST_G:
+        case lamar::OpCode::LDA_G: {
+            auto index = read_uint(ip);
+            if (index >= byte_file_.global_area_size) {
+                diagnostics::push_error_diagnostic("Global variable index out of bounds", offset);
+            }
+            break;
+        }
+
+        case lamar::OpCode::LD_L:
+        case lamar::OpCode::LDA_L:
+        case lamar::OpCode::ST_L: {
+            auto index = read_uint(ip);
+            auto locals_count = read_uint(procedure_stack_.peek().offset + sizeof(OpCode) + sizeof(uint32_t));
+
+            if (index >= locals_count) {
+                diagnostics::push_error_diagnostic("Local variable index out of bounds", offset);
+            }
+            break;
+        }
+
+        case lamar::OpCode::ST_A:
+        case lamar::OpCode::LDA_A:
+        case lamar::OpCode::LD_A: {
+            auto index = read_uint(ip);
+            auto args_count = read_uint(procedure_stack_.peek().offset + sizeof(OpCode));
+
+            if (index >= args_count) {
+                diagnostics::push_error_diagnostic("Argument index out of bounds", offset);
+            }
+            break;
+        }
+
+
         case JMP:
         case CJMPZ:
         case CJMPNZ: {
@@ -199,14 +234,59 @@ void lamar::Verifier::verify_instruction(uint32_t offset) const {
         }
 
         case CLOSURE: {
-            auto address = read_uint(ip);
-            if (address >= byte_file_.program_code.size()) {
+            auto location = read_uint(ip);
+            if (location >= byte_file_.program_code.size()) {
                 diagnostics::push_error_diagnostic("Closure address out of bounds", offset);
                 break;
             }
+            auto closure_args_count = read_uint(ip + sizeof(uint32_t));
+            auto allow_begin = true;
 
-            auto entry = byte_file_.program_code[address];
-            if (entry != BEGIN && entry != CBEGIN) {
+
+            ip += sizeof(uint32_t) * 2;
+            for (uint32_t i = 0; i < closure_args_count; i++) {
+                auto type = ClosureArgType(byte_file_.program_code[ip]);
+                if (!is_valid_closure_arg_type(type)) {
+                    diagnostics::push_error_diagnostic("Invalid closure argument type", offset);
+                    break;
+                }
+
+                ip += sizeof(ClosureArgType);
+
+                auto address = read_uint(ip);
+
+                ip += sizeof(uint32_t);
+
+                switch (type) {
+                    case Global:
+                        if (address >= byte_file_.global_area_size) {
+                            diagnostics::push_error_diagnostic("Global variable index out of bounds", offset);
+                        }
+                        break;
+                    case Local: {
+                        auto locals_count = read_uint(
+                                procedure_stack_.peek().offset + sizeof(OpCode) + sizeof(uint32_t));
+
+                        if (address >= locals_count) {
+                            diagnostics::push_error_diagnostic("Local variable index out of bounds", offset);
+                        }
+                        break;
+                    }
+                    case Arg: {
+                        auto args_count = read_uint(procedure_stack_.peek().offset + sizeof(OpCode));
+                        if (address >= args_count) {
+                            diagnostics::push_error_diagnostic("Argument index out of bounds", offset);
+                        }
+                        break;
+                    }
+                    case Capture:
+                        allow_begin = false;
+                        break;
+                }
+            }
+
+            auto entry = byte_file_.program_code[location];
+            if ((entry != BEGIN || entry == BEGIN && !allow_begin) && entry != CBEGIN) {
                 diagnostics::push_error_diagnostic("Closure entry must be begin or cbegin", offset);
             }
             break;

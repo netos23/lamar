@@ -171,6 +171,7 @@ namespace lamar {
     };
 
     bool is_valid_opcode(uint8_t opcode);
+    bool is_valid_closure_arg_type(uint8_t closure_arg_type);
 }
 
 #endif //LAMAR_BYTECODE_HPP

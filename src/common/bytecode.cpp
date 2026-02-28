@@ -75,3 +75,16 @@ bool lamar::is_valid_opcode(uint8_t opcode) {
             return false;
     }
 }
+
+bool lamar::is_valid_closure_arg_type(uint8_t сlosure_arg_type) {
+    switch (сlosure_arg_type) {
+        case lamar::ClosureArgType::Global:
+        case lamar::ClosureArgType::Local:
+        case lamar::ClosureArgType::Arg:
+        case lamar::ClosureArgType::Capture:
+            return true;
+        default:
+            return false;
+    }
+    return false;
+}

@@ -8,6 +8,7 @@
 #include <algorithm>
 #include <cstdint>
 #include <functional>
+#include <chrono>
 #include "runtime.hpp"
 #include "frame.hpp"
 
@@ -16,7 +17,7 @@
 
 namespace lamar::util {
     struct Allocator {
-        auint stack[MAX_STACK_SIZE]{};
+        alignas(16) auint stack[MAX_STACK_SIZE]{};
         lamar::Frame call_stack[MAX_CALL_STACK_SIZE]{};
     };
 
@@ -91,6 +92,22 @@ namespace lamar::util {
     private:
         E *data_;
         E *end_ = data_;
+    };
+
+    class Stopwatch {
+    public:
+        void start() {
+            start_time_ = Clock::now();
+        }
+
+        double stop() {
+            const auto stop_time = Clock::now();
+            return std::chrono::duration<double>(stop_time - start_time_).count();
+        }
+
+    private:
+        using Clock = std::chrono::steady_clock;
+        Clock::time_point start_time_;
     };
 }
 

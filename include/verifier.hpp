@@ -27,7 +27,7 @@ namespace lamar {
 
         bool operator<(const InstructionInfo &other) const {
             if (priority == other.priority) {
-                return offset < other.offset;
+                return offset > other.offset;
             }
 
             return priority < other.priority;
@@ -70,8 +70,6 @@ namespace lamar {
         util::Stack<ProcedureInfo> procedure_stack_;
         ByteFile &byte_file_;
         std::ofstream ofs_{"/dev/null", std::ofstream::out | std::ofstream::app};
-
-
     };
 
 }

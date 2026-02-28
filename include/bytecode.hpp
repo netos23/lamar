@@ -169,6 +169,8 @@ namespace lamar {
         std::vector<OpCode> program_code;
         std::string file_name;
     };
+
+    bool is_valid_opcode(uint8_t opcode);
 }
 
 #endif //LAMAR_BYTECODE_HPP

@@ -4,7 +4,6 @@
 
 #include "interpreter.hpp"
 #include "diagnostics.hpp"
-#include <iostream>
 
 
 void lamar::Interpreter::interpret() {

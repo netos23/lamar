@@ -16,13 +16,11 @@
 #include "bytecode.hpp"
 #include "value.hpp"
 #include "frame.hpp"
+#include "utils.hpp"
 
 #ifndef ENABLE_VERIFICATION
 #define ENABLE_VERIFICATION
 #endif
-
-#define MAX_STACK_SIZE (1 << 17)
-#define MAX_CALL_STACK_SIZE (1 << 17)
 
 namespace lamar {
 
@@ -594,6 +592,14 @@ namespace lamar {
             frame.set_locals_count(locals_count);
 #endif
 
+#ifdef ENABLE_VERIFICATION
+            auto required_size = ((args_count >> 16) & 0xFFFFu);
+
+            if (stack_size() + required_size >= MAX_STACK_SIZE) {
+                push_error_diagnostic("Not enough stack space for procedure execution");
+            }
+#endif
+
             for (uint32_t i = 0; i < locals_count; i++) {
                 push(Value(auint(0)));
             }
@@ -611,6 +617,14 @@ namespace lamar {
             }
 
             frame.set_locals_count(locals_count);
+#endif
+
+#ifdef ENABLE_VERIFICATION
+            auto required_size = ((args_count >> 16) & 0xFFFFu);
+
+            if (stack_size() + required_size >= MAX_STACK_SIZE) {
+                push_error_diagnostic("Not enough stack space for procedure execution");
+            }
 #endif
 
             for (uint32_t i = 0; i < locals_count; i++) {

@@ -37,14 +37,14 @@ void lamar::Verifier::verify_cfg(uint32_t entry_point) {
         auto [offset, _] = instruction_queue_.pop();
 
         if (verified_[offset] != UNVISITED_INSTRUCTION && !IS_JUMP_TARGET(verified_[offset])) {
-            if(instruction_queue_.empty()) {
+            if (instruction_queue_.empty()) {
                 continue;
             }
 
             auto [next, _] = instruction_queue_.pop();
             height = GET_HEIGHT(verified_[next]);
 
-            if(verified_[next] != UNVISITED_INSTRUCTION) {
+            if (verified_[next] != UNVISITED_INSTRUCTION) {
                 verified_[next] = MARK_JUMP_TARGET(height);
             }
 
@@ -58,7 +58,7 @@ void lamar::Verifier::verify_cfg(uint32_t entry_point) {
             continue;
         }
 
-        if(IS_JUMP_TARGET(verified_[offset])) {
+        if (IS_JUMP_TARGET(verified_[offset])) {
             height = GET_HEIGHT(verified_[offset]);
         }
         auto diff = get_stack_diff(offset);
@@ -93,7 +93,7 @@ void lamar::Verifier::verify_cfg(uint32_t entry_point) {
             }
 
             if (verified_[location] != UNVISITED_INSTRUCTION) {
-                if (GET_HEIGHT(verified_[location]) != height) {
+                if (GET_HEIGHT(verified_[location]) != height + get_stack_diff(location)) {
                     diagnostics::push_error_diagnostic("Inconsistent stack height at jump target", location);
                 }
             } else {
@@ -112,7 +112,7 @@ void lamar::Verifier::verify_cfg(uint32_t entry_point) {
                 diagnostics::push_error_diagnostic("Procedure address out of bounds", location);
                 continue;
             }
-            verified_[location] = MARK_JUMP_TARGET(height);
+            verified_[location] = MARK_JUMP_TARGET(0);
             instruction_queue_.push({location, get_priority(location)});
         }
 
@@ -162,6 +162,11 @@ uint32_t lamar::Verifier::get_priority(uint32_t offset) const {
 void lamar::Verifier::verify_instruction(uint32_t offset) const {
     auto opcode = static_cast<OpCode>(byte_file_.program_code[offset]);
     auto ip = offset + sizeof(OpCode);
+
+    if(!is_valid_opcode(opcode)) {
+        diagnostics::push_error_diagnostic("Invalid opcode", offset);
+        return;
+    }
 
     switch (opcode) {
         case STRING: {
@@ -268,13 +273,6 @@ uint32_t lamar::Verifier::verify_public() const {
 
 int32_t lamar::Verifier::get_stack_diff(uint32_t offset) const {
     auto usage = get_stack_usage(offset);
-    auto format_addr = [&](std::ptrdiff_t pos) {
-        std::cout << "0x" << std::hex << std::setw(8) << std::setfill('0') << static_cast<uint32_t>(pos)
-               << ":\t" << std::dec;
-    };
-    std::cout << "Offset: ";
-    format_addr(offset);
-    std::cout << ", stack diff: " << static_cast<int32_t>(usage.second) - static_cast<int32_t>(usage.first) << '\n';
     return static_cast<int32_t>(usage.second) - static_cast<int32_t>(usage.first);
 }
 
@@ -364,18 +362,20 @@ std::pair<uint32_t, uint32_t> lamar::Verifier::get_stack_usage(uint32_t offset) 
             return {1, 0};
 
         case BEGIN:
-        case CBEGIN: {
-            auto locals = read_uint(ip + sizeof(uint32_t));
-            return {0, locals};
-        }
-
+        case CBEGIN:
+            return {0, 0};
         case CLOSURE: {
             auto captures = read_uint(ip + sizeof(uint32_t));
-            return {0, 1 + (sizeof(ClosureArgType) + sizeof(uint32_t)) * captures};
+            return {0, 1 + captures};
         }
-        case CALLC:
-        case CALL:
-            return {0, 0};
+        case CALLC: {
+            auto args = read_uint(ip);
+            return {args + 1, 1};
+        }
+        case CALL: {
+            auto args = read_uint(ip + sizeof(uint32_t));
+            return {args, 1};
+        }
 
         case TAG:
         case ARRAY:

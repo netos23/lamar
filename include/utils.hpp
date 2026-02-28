@@ -8,8 +8,17 @@
 #include <algorithm>
 #include <cstdint>
 #include <functional>
+#include "runtime.hpp"
+#include "frame.hpp"
+
+#define MAX_STACK_SIZE (1 << 17)
+#define MAX_CALL_STACK_SIZE (1 << 17)
 
 namespace lamar::util {
+    struct Allocator {
+        auint stack[MAX_STACK_SIZE]{};
+        lamar::Frame call_stack[MAX_CALL_STACK_SIZE]{};
+    };
 
     template<typename E, typename Compare = std::less<E>>
     class PriorityQueue {

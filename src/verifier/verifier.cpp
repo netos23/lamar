@@ -66,8 +66,9 @@ void lamar::Verifier::verify_cfg(uint32_t entry_point) {
         if (IS_JUMP_TARGET(verified_[offset])) {
             height = GET_HEIGHT(verified_[offset]);
         }
-        auto diff = get_stack_diff(offset);
-        if (static_cast<int32_t>(height) + diff < 0) {
+        auto [released, allocated] = get_stack_usage(offset);
+        auto diff = static_cast<int32_t>(allocated) - static_cast<int32_t>(released);
+        if (static_cast<int32_t>(height) - released < 0) {
             diagnostics::push_error_diagnostic("Stack underflow at instruction", offset);
             continue;
         }
@@ -98,7 +99,10 @@ void lamar::Verifier::verify_cfg(uint32_t entry_point) {
             }
 
             if (verified_[location] != UNVISITED_INSTRUCTION) {
-                if (GET_HEIGHT(verified_[location]) != height + get_stack_diff(location)) {
+                auto [released_at_location, allocated_at_location] = get_stack_usage(offset);
+                auto diff_at_location =
+                        static_cast<int32_t>(allocated_at_location) - static_cast<int32_t>(released_at_location);
+                if (GET_HEIGHT(verified_[location]) != height + diff_at_location) {
                     diagnostics::push_error_diagnostic("Inconsistent stack height at jump target", location);
                 }
             } else {
@@ -124,6 +128,10 @@ void lamar::Verifier::verify_cfg(uint32_t entry_point) {
 
         if (opcode == END || opcode == RET || opcode == FAIL) {
             auto [proc_address, max_stack_size] = procedure_stack_.pop();
+
+            if (max_stack_size > 0xFFFFu) {
+                diagnostics::push_error_diagnostic("Procedure requires too much stack space", proc_address);
+            }
 
             auto begin_op = static_cast<OpCode>(byte_file_.program_code[proc_address]);
             if (begin_op == BEGIN || begin_op == CBEGIN) {
@@ -286,7 +294,7 @@ void lamar::Verifier::verify_instruction(uint32_t offset) const {
             }
 
             auto entry = byte_file_.program_code[location];
-            if ((entry != BEGIN || entry == BEGIN && !allow_begin) && entry != CBEGIN) {
+            if ((entry != BEGIN || !allow_begin) && entry != CBEGIN) {
                 diagnostics::push_error_diagnostic("Closure entry must be begin or cbegin", offset);
             }
             break;
@@ -349,11 +357,6 @@ uint32_t lamar::Verifier::verify_public() const {
     }
 
     return main_offset;
-}
-
-int32_t lamar::Verifier::get_stack_diff(uint32_t offset) const {
-    auto usage = get_stack_usage(offset);
-    return static_cast<int32_t>(usage.second) - static_cast<int32_t>(usage.first);
 }
 
 uint32_t lamar::Verifier::read_uint(uint32_t offset) const {

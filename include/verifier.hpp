@@ -56,8 +56,6 @@ namespace lamar {
 
         uint32_t verify_public() const;
 
-        int32_t get_stack_diff(uint32_t offset) const;
-
         std::pair<uint32_t, uint32_t> get_stack_usage(uint32_t offset) const;
 
         uint32_t read_uint(uint32_t offset) const;

@@ -13,6 +13,7 @@
 #include "utils.hpp"
 
 #define MAX_FILE_SIZE (1u << 17)
+#define MAX_VERIFIED_SIZE 0xFFFF
 
 #define GET_HEIGHT(value) ((value) & ~(3u << 30))
 #define MARK_JUMP_TARGET(value) ((value) | (1u << 30))
@@ -46,26 +47,23 @@ namespace lamar {
         void verify();
 
     private:
-        constexpr const static uint32_t UNVISITED_INSTRUCTION = 1u << 31;
+        constexpr const static uint16_t UNVISITED_INSTRUCTION = 1u << 15;
 
         uint32_t instruction_length(uint32_t offset);
 
         void verify_cfg(uint32_t entry_point);
 
-        void verify_instruction(uint32_t offset) const;
+        void verify_instruction(uint32_t procedure_offset, uint32_t offset) const;
 
         uint32_t verify_public() const;
 
-        std::pair<uint32_t, uint32_t> get_stack_usage(uint32_t offset) const;
+        std::pair<uint16_t, uint16_t> get_stack_usage(uint32_t offset) const;
 
         uint32_t read_uint(uint32_t offset) const;
 
-        uint32_t get_priority(uint32_t offset) const;
-
         Disassembler disassembler_;
-        uint32_t *verified_;
-        util::PriorityQueue<InstructionInfo> instruction_queue_;
-        util::Stack<ProcedureInfo> procedure_stack_;
+        uint16_t *verified_;
+        util::Stack<uint32_t> procedure_stack_;
         ByteFile &byte_file_;
         std::ofstream ofs_{"/dev/null", std::ofstream::out | std::ofstream::app};
     };

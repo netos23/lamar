@@ -18,9 +18,8 @@ lamar::Verifier::Verifier(
         auint *stack,
         void *verified
 ) : disassembler_(disassembler),
-    instruction_queue_(stack, MAX_FILE_SIZE / (2 * sizeof(InstructionInfo))),
-    procedure_stack_(stack + MAX_STACK_SIZE / 2),
-    verified_(reinterpret_cast<uint32_t *>(verified)),
+    procedure_stack_(stack),
+    verified_(reinterpret_cast<uint16_t *>(verified)),
     byte_file_(byte_file) {
     std::fill(verified_, verified_ + MAX_FILE_SIZE * sizeof(Frame) / sizeof(uint32_t), UNVISITED_INSTRUCTION);
 }
@@ -31,148 +30,128 @@ void lamar::Verifier::verify() {
 }
 
 void lamar::Verifier::verify_cfg(uint32_t entry_point) {
-    instruction_queue_.push({entry_point, 0});
+    procedure_stack_.push(entry_point);
     uint32_t height = 0;
-    while (!instruction_queue_.empty()) {
-        auto [offset, _] = instruction_queue_.pop();
 
-        if (verified_[offset] != UNVISITED_INSTRUCTION && !IS_JUMP_TARGET(verified_[offset])) {
-            if (instruction_queue_.empty()) {
-                continue;
+    while (!procedure_stack_.empty()) {
+        auto offset = procedure_stack_.pop();
+        uint32_t max_stack_size = 0;
+        uint32_t procedure_offset = 0;
+
+        if (IS_JUMP_TARGET(offset)) {
+            procedure_offset = procedure_stack_.pop();
+            offset = GET_HEIGHT(offset);
+            height = verified_[offset];
+
+            auto args_count = read_uint(procedure_offset + sizeof(OpCode));
+            max_stack_size = ((args_count >> 16) & 0xFFFFu);;
+        } else {
+            procedure_offset = offset;
+        }
+
+
+        while (true) {
+
+            auto opcode = byte_file_.program_code[offset];
+            if (!is_valid_opcode(opcode)) {
+                diagnostics::push_error_diagnostic("Invalid opcode", offset);
+                return;
             }
 
-            auto [next, _] = instruction_queue_.pop();
-            height = GET_HEIGHT(verified_[next]);
-
-            if (verified_[next] != UNVISITED_INSTRUCTION) {
-                verified_[next] = MARK_JUMP_TARGET(height);
+            auto length = instruction_length(offset);
+            if (offset + length > byte_file_.program_code.size()) {
+                diagnostics::push_error_diagnostic("Not enough bytes for instruction", offset);
+                return;
             }
 
-            continue;
-        }
-
-        auto opcode = byte_file_.program_code[offset];
-        if (!is_valid_opcode(opcode)) {
-            diagnostics::push_error_diagnostic("Invalid opcode", offset);
-            return;
-        }
-
-        auto length = instruction_length(offset);
-        if (offset + length > byte_file_.program_code.size()) {
-            diagnostics::push_error_diagnostic("Not enough bytes for instruction", offset);
-            continue;
-        }
-
-        if (IS_JUMP_TARGET(verified_[offset])) {
-            height = GET_HEIGHT(verified_[offset]);
-        }
-        auto [released, allocated] = get_stack_usage(offset);
-        auto diff = static_cast<int32_t>(allocated) - static_cast<int32_t>(released);
-        if (static_cast<int32_t>(height) - released < 0) {
-            diagnostics::push_error_diagnostic("Stack underflow at instruction", offset);
-            continue;
-        }
-
-        if (static_cast<int32_t>(height) + diff > MAX_STACK_SIZE) {
-            diagnostics::push_error_diagnostic("Stack overflow at instruction", offset);
-            continue;
-        }
-
-        height += diff;
-        verified_[offset] = height;
-        if (!procedure_stack_.empty()) {
-            auto current_proc = procedure_stack_.peek();
-            current_proc.max_stack_size = std::max(current_proc.max_stack_size, height);
-        }
-
-        if (opcode == BEGIN || opcode == CBEGIN) {
-            procedure_stack_.push({offset, height});
-        }
-
-        verify_instruction(offset);
-
-        if (opcode == JMP || opcode == CJMPZ || opcode == CJMPNZ) {
-            auto location = read_uint(offset + 1);
-            if (location >= byte_file_.program_code.size()) {
-                diagnostics::push_error_diagnostic("Jump target out of bounds", location);
-                continue;
+            auto [released, allocated] = get_stack_usage(offset);
+            auto diff = static_cast<int32_t>(allocated) - static_cast<int32_t>(released);
+            if (static_cast<int32_t>(height) - released < 0) {
+                diagnostics::push_error_diagnostic("Stack underflow at instruction", offset);
+                return;
             }
 
-            if (verified_[location] != UNVISITED_INSTRUCTION) {
-                auto [released_at_location, allocated_at_location] = get_stack_usage(offset);
-                auto diff_at_location =
-                        static_cast<int32_t>(allocated_at_location) - static_cast<int32_t>(released_at_location);
-                if (GET_HEIGHT(verified_[location]) != height + diff_at_location) {
-                    diagnostics::push_error_diagnostic("Inconsistent stack height at jump target", location);
+            if (static_cast<int32_t>(height) + diff > MAX_VERIFIED_SIZE) {
+                diagnostics::push_error_diagnostic("Stack overflow at instruction", offset);
+                return;
+            }
+
+            height += diff;
+            verified_[offset] = height;
+            max_stack_size = std::max(max_stack_size, height);
+
+            verify_instruction(procedure_offset, offset);
+
+            if (opcode == JMP || opcode == CJMPZ || opcode == CJMPNZ) {
+                auto location = read_uint(offset + sizeof(OpCode));
+                if (location >= byte_file_.program_code.size()) {
+                    diagnostics::push_error_diagnostic("Jump target out of bounds", location);
+                    return;
                 }
-            } else {
-                verified_[location] = MARK_JUMP_TARGET(height);
-                instruction_queue_.push({location, get_priority(location)});
-            }
-        }
 
-        if (opcode == JMP) {
-            continue;
-        }
+                if (verified_[location] != UNVISITED_INSTRUCTION) {
+                    auto [released_at_location, allocated_at_location] = get_stack_usage(offset);
+                    auto diff_at_location =
+                            static_cast<int32_t>(allocated_at_location) - static_cast<int32_t>(released_at_location);
 
-        if (opcode == CALL || opcode == CLOSURE) {
-            auto location = read_uint(offset + sizeof(OpCode));
-            if (location >= byte_file_.program_code.size()) {
-                diagnostics::push_error_diagnostic("Procedure address out of bounds", location);
-                continue;
-            }
-            verified_[location] = MARK_JUMP_TARGET(0);
-            instruction_queue_.push({location, get_priority(location)});
-        }
-
-
-        if (opcode == END || opcode == RET || opcode == FAIL) {
-            auto [proc_address, max_stack_size] = procedure_stack_.pop();
-
-            if (max_stack_size > 0xFFFFu) {
-                diagnostics::push_error_diagnostic("Procedure requires too much stack space", proc_address);
-            }
-
-            auto begin_op = static_cast<OpCode>(byte_file_.program_code[proc_address]);
-            if (begin_op == BEGIN || begin_op == CBEGIN) {
-                auto arg_offset = proc_address + sizeof(OpCode);
-                if (arg_offset + sizeof(uint32_t) <= byte_file_.program_code.size()) {
-                    auto arg = read_uint(arg_offset);
-                    arg = (arg & 0x0000FFFFu) | ((max_stack_size & 0xFFFFu) << 16);
-                    std::memcpy(byte_file_.program_code.data() + arg_offset, &arg, sizeof(uint32_t));
+                    if (verified_[location] != height + diff_at_location) {
+                        diagnostics::push_error_diagnostic("Inconsistent stack height at jump target", location);
+                        return;
+                    }
                 } else {
-                    diagnostics::push_error_diagnostic("Index out of bounds while writing begin arg", arg_offset);
+                    verified_[location] = height;
+                    procedure_stack_.push(procedure_offset);
+                    procedure_stack_.push(MARK_JUMP_TARGET(location));
+                }
+
+                if (opcode == JMP) {
+                    offset = location;
+                    continue;
                 }
             }
 
 
-            if (instruction_queue_.empty())
-                continue;
+            if (opcode == CALL || opcode == CLOSURE) {
+                auto location = read_uint(offset + sizeof(OpCode));
+                if (location >= byte_file_.program_code.size()) {
+                    diagnostics::push_error_diagnostic("Procedure address out of bounds", location);
+                    return;
+                }
 
-            auto [next_instr, next_proc] = instruction_queue_.peek();
-
-            if (verified_[next_instr] != UNVISITED_INSTRUCTION) {
-                verified_[next_instr] = MARK_JUMP_TARGET(verified_[next_instr]);
+                if (verified_[location] != UNVISITED_INSTRUCTION) {
+                    procedure_stack_.push(location);
+                }
             }
 
-            continue;
+
+            if (opcode == END || opcode == RET || opcode == FAIL) {
+
+                if (max_stack_size > 0xFFFFu) {
+                    diagnostics::push_error_diagnostic("Procedure requires too much stack space", procedure_offset);
+                    return;
+                }
+
+                auto begin_op = static_cast<OpCode>(byte_file_.program_code[procedure_offset]);
+                if (begin_op == BEGIN || begin_op == CBEGIN) {
+                    auto arg_offset = procedure_offset + sizeof(OpCode);
+                    if (arg_offset + sizeof(uint32_t) <= byte_file_.program_code.size()) {
+                        auto arg = read_uint(arg_offset);
+                        arg = (arg & 0x0000FFFFu) | ((max_stack_size & 0xFFFFu) << 16);
+                        std::memcpy(byte_file_.program_code.data() + arg_offset, &arg, sizeof(uint32_t));
+                    } else {
+                        diagnostics::push_error_diagnostic("Index out of bounds while writing begin arg", arg_offset);
+                    }
+                }
+
+                break;
+            }
+
+            offset += length;
         }
-
-        instruction_queue_.push({offset + length, get_priority(offset + length)});
     }
 }
 
-uint32_t lamar::Verifier::get_priority(uint32_t offset) const {
-    if (byte_file_.program_code[offset] == END
-        || byte_file_.program_code[offset] == RET
-        || byte_file_.program_code[offset] == FAIL) {
-        return (procedure_stack_.size() + 1) * 2 - 1; // prioritize procedure entries
-    }
-
-    return (procedure_stack_.size() + 1) * 2;
-}
-
-void lamar::Verifier::verify_instruction(uint32_t offset) const {
+void lamar::Verifier::verify_instruction(uint32_t procedure_offset, uint32_t offset) const {
     auto opcode = static_cast<OpCode>(byte_file_.program_code[offset]);
     auto ip = offset + sizeof(OpCode);
 
@@ -210,7 +189,7 @@ void lamar::Verifier::verify_instruction(uint32_t offset) const {
         case lamar::OpCode::LDA_L:
         case lamar::OpCode::ST_L: {
             auto index = read_uint(ip);
-            auto locals_count = read_uint(procedure_stack_.peek().offset + sizeof(OpCode) + sizeof(uint32_t));
+            auto locals_count = read_uint(procedure_offset + sizeof(OpCode) + sizeof(uint32_t));
 
             if (index >= locals_count) {
                 diagnostics::push_error_diagnostic("Local variable index out of bounds", offset);
@@ -222,7 +201,7 @@ void lamar::Verifier::verify_instruction(uint32_t offset) const {
         case lamar::OpCode::LDA_A:
         case lamar::OpCode::LD_A: {
             auto index = read_uint(ip);
-            auto args_count = read_uint(procedure_stack_.peek().offset + sizeof(OpCode));
+            auto args_count = read_uint(procedure_offset + sizeof(OpCode));
 
             if (index >= args_count) {
                 diagnostics::push_error_diagnostic("Argument index out of bounds", offset);
@@ -272,8 +251,7 @@ void lamar::Verifier::verify_instruction(uint32_t offset) const {
                         }
                         break;
                     case Local: {
-                        auto locals_count = read_uint(
-                                procedure_stack_.peek().offset + sizeof(OpCode) + sizeof(uint32_t));
+                        auto locals_count = read_uint(procedure_offset + sizeof(OpCode) + sizeof(uint32_t));
 
                         if (address >= locals_count) {
                             diagnostics::push_error_diagnostic("Local variable index out of bounds", offset);
@@ -281,7 +259,7 @@ void lamar::Verifier::verify_instruction(uint32_t offset) const {
                         break;
                     }
                     case Arg: {
-                        auto args_count = read_uint(procedure_stack_.peek().offset + sizeof(OpCode));
+                        auto args_count = read_uint(procedure_offset + sizeof(OpCode));
                         if (address >= args_count) {
                             diagnostics::push_error_diagnostic("Argument index out of bounds", offset);
                         }
@@ -370,7 +348,7 @@ uint32_t lamar::Verifier::read_uint(uint32_t offset) const {
     return res;
 }
 
-std::pair<uint32_t, uint32_t> lamar::Verifier::get_stack_usage(uint32_t offset) const {
+std::pair<uint16_t, uint16_t> lamar::Verifier::get_stack_usage(uint32_t offset) const {
     auto code = static_cast<OpCode>(byte_file_.program_code[offset]);
     uint32_t ip = offset + sizeof(OpCode);
 

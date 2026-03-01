@@ -15,30 +15,11 @@
 #define MAX_FILE_SIZE (1u << 17)
 #define MAX_VERIFIED_SIZE 0xFFFF
 
-#define GET_HEIGHT(value) ((value) & ~(3u << 30))
+#define GET_OFFSET(value) ((value) & ~(3u << 30))
 #define MARK_JUMP_TARGET(value) ((value) | (1u << 30))
-#define UNMARK_JUMP_TARGET(value) ((value) & ~(1u << 30))
 #define IS_JUMP_TARGET(value) (((value) >> 30) & 0x1u)
 
 namespace lamar {
-
-    struct InstructionInfo {
-        uint32_t offset = 0;
-        uint32_t priority = 0;
-
-        bool operator<(const InstructionInfo &other) const {
-            if (priority == other.priority) {
-                return offset > other.offset;
-            }
-
-            return priority < other.priority;
-        };
-    };
-
-    struct ProcedureInfo {
-        uint32_t offset = 0;
-        uint32_t max_stack_size = 0;
-    };
 
     class Verifier {
     public:

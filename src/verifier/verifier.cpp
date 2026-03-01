@@ -40,7 +40,7 @@ void lamar::Verifier::verify_cfg(uint32_t entry_point) {
 
         if (IS_JUMP_TARGET(offset)) {
             procedure_offset = procedure_stack_.pop();
-            offset = GET_HEIGHT(offset);
+            offset = GET_OFFSET(offset);
             height = verified_[offset];
 
             auto args_count = read_uint(procedure_offset + sizeof(OpCode));
@@ -126,7 +126,7 @@ void lamar::Verifier::verify_cfg(uint32_t entry_point) {
 
             if (opcode == END || opcode == RET || opcode == FAIL) {
 
-                if (max_stack_size > 0xFFFFu) {
+                if (max_stack_size > MAX_VERIFIED_SIZE) {
                     diagnostics::push_error_diagnostic("Procedure requires too much stack space", procedure_offset);
                     return;
                 }

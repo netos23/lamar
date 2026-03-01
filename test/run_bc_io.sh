@@ -9,7 +9,7 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 BC_DIR="${BC_DIR:-${ROOT_DIR}/regression}"
-LAMAR_BIN="${LAMAR_BIN:-${ROOT_DIR}/cmake-build-release/lamar}"
+LAMAR_BIN="${LAMAR_BIN:-${ROOT_DIR}/cmake-build-debug/lamar}"
 
 if [[ ! -x "${LAMAR_BIN}" ]]; then
   echo "::error file=${LAMAR_BIN}::lamar executable not found or not executable" >&2

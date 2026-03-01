@@ -66,7 +66,7 @@ else ()
     endif ()
 endif ()
 
-#add_compile_definitions(ENABLE_VERIFICATION MESHURE_TIME)
+add_compile_definitions(ENABLE_VERIFICATION MESHURE_TIME)
 
 target_include_directories(lamar PRIVATE include/ ${RUNTIME_DIR})
 target_link_libraries(lamar PRIVATE runtime)

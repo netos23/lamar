@@ -6,7 +6,8 @@
 #define LAMAR_VERIFIER_HPP
 
 #include <fstream>
-#include "disassembler.hpp"
+#include <limits>
+#include <vector>
 #include "disassembler.hpp"
 #include "diagnostics.hpp"
 #include "runtime.hpp"
@@ -14,25 +15,7 @@
 
 #define MAX_FILE_SIZE (1u << 17)
 
-#define GET_HEIGHT(value) ((value) & ~(3u << 30))
-#define MARK_JUMP_TARGET(value) ((value) | (1u << 30))
-#define UNMARK_JUMP_TARGET(value) ((value) & ~(1u << 30))
-#define IS_JUMP_TARGET(value) (((value) >> 30) & 0x1u)
-
 namespace lamar {
-
-    struct InstructionInfo {
-        uint32_t offset = 0;
-        uint32_t priority = 0;
-
-        bool operator<(const InstructionInfo &other) const {
-            if (priority == other.priority) {
-                return offset > other.offset;
-            }
-
-            return priority < other.priority;
-        };
-    };
 
     struct ProcedureInfo {
         uint32_t offset = 0;
@@ -41,12 +24,12 @@ namespace lamar {
 
     class Verifier {
     public:
-        Verifier(ByteFile &byte_file, const Disassembler &disassembler, auint *stack, void *verified);
+        Verifier(ByteFile &byte_file, const Disassembler &disassembler);
 
         void verify();
 
     private:
-        constexpr const static uint32_t UNVISITED_INSTRUCTION = 1u << 31;
+        static constexpr uint16_t HEIGHT_UNKNOWN = std::numeric_limits<uint16_t>::max();
 
         uint32_t instruction_length(uint32_t offset);
 
@@ -60,12 +43,12 @@ namespace lamar {
 
         uint32_t read_uint(uint32_t offset) const;
 
-        uint32_t get_priority(uint32_t offset) const;
+        void enqueue_instruction(uint32_t offset, uint32_t height);
 
         Disassembler disassembler_;
-        uint32_t *verified_;
-        util::PriorityQueue<InstructionInfo> instruction_queue_;
-        util::Stack<ProcedureInfo> procedure_stack_;
+        std::vector<uint16_t> instruction_height_;
+        std::vector<uint32_t> worklist_;
+        std::vector<ProcedureInfo> procedure_stack_;
         ByteFile &byte_file_;
         std::ofstream ofs_{"/dev/null", std::ofstream::out | std::ofstream::app};
     };

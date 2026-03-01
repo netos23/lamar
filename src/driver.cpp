@@ -48,7 +48,7 @@ int main(int argc, char **argv) {
     timer.start();
 #endif
 
-    lamar::Verifier verifier(file, lamar::Disassembler{}, allocator.stack, allocator.call_stack);
+    lamar::Verifier verifier(file, lamar::Disassembler{});
     verifier.verify();
 
 #ifdef MESHURE_TIME
